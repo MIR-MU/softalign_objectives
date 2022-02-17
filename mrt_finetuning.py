@@ -27,8 +27,8 @@ test_firstn = 1000
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 wiki_val_pairs = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
-opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
-opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+# opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+# opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
 bible_pairs = OPUSDataset("Bible", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -59,28 +59,28 @@ metrics_args = {"additional_sep_char": "▁"}
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-mrt_opensub = MinimumRiskTraining(lang_module,
-                                  texts_or_path=opensub_pairs.target,
-                                  labels_or_path=opensub_val_pairs.target,
-                                  val_texts_or_path=opensub_val_pairs.source,
-                                  val_labels_or_path=opensub_val_pairs.target,
-                                  source_lang_id=src_lang,
-                                  target_lang_id=tgt_lang,
-                                  batch_size=2,
-                                  train_evaluators=[BLEU()],
-                                  val_evaluators=val_metrics,
-                                  objective_id="Opensub")
-seq_wiki = Sequence2Sequence(lang_module,
-                             texts_or_path=wiki_pairs.source,
-                             labels_or_path=wiki_pairs.target,
-                             val_texts_or_path=wiki_val_pairs.source,
-                             val_labels_or_path=wiki_val_pairs.target,
-                             source_lang_id=src_lang,
-                             target_lang_id=tgt_lang,
-                             batch_size=2,
-                             val_evaluators=val_metrics,
-                             share_other_objective_head=mrt_opensub,
-                             objective_id="Wiki")
+mrt_wiki = MinimumRiskTraining(lang_module,
+                               texts_or_path=wiki_pairs.source,
+                               labels_or_path=wiki_pairs.target,
+                               val_texts_or_path=wiki_val_pairs.source,
+                               val_labels_or_path=wiki_val_pairs.target,
+                               source_lang_id=src_lang,
+                               target_lang_id=tgt_lang,
+                               batch_size=2,
+                               train_evaluators=[BLEU()],
+                               val_evaluators=val_metrics,
+                               objective_id="Opensub")
+# seq_wiki = Sequence2Sequence(lang_module,
+#                              texts_or_path=wiki_pairs.source,
+#                              labels_or_path=wiki_pairs.target,
+#                              val_texts_or_path=wiki_val_pairs.source,
+#                              val_labels_or_path=wiki_val_pairs.target,
+#                              source_lang_id=src_lang,
+#                              target_lang_id=tgt_lang,
+#                              batch_size=2,
+#                              val_evaluators=val_metrics,
+#                              share_other_objective_head=mrt_wiki,
+#                              objective_id="Wiki")
 
 seq_bible = Sequence2Sequence(lang_module,
                               texts_or_path=bible_pairs.source,
@@ -91,11 +91,11 @@ seq_bible = Sequence2Sequence(lang_module,
                               target_lang_id=tgt_lang,
                               batch_size=2,
                               val_evaluators=val_metrics,
-                              share_other_objective_head=mrt_opensub,
+                              share_other_objective_head=mrt_wiki,
                               objective_id="Bible")
 
-schedule = ParallelSchedule(objectives=[mrt_opensub],
-                            extra_eval_objectives=[seq_wiki, seq_bible],
+schedule = ParallelSchedule(objectives=[mrt_wiki],
+                            extra_eval_objectives=[seq_bible],
                             args=training_arguments)
 
 # for training from scratch, we use LangModule.reinitialize() after the initialization of all training Objectives
@@ -113,7 +113,7 @@ print("Starting evaluation")
 
 test_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-translator_model = lang_module.trainable_models[str(id(mrt_opensub))]
+translator_model = lang_module.trainable_models[str(id(mrt_wiki))]
 metric = BLEU(use_generate=True, additional_sep_char="▁", progress_bar=False)
 
 for test_dataset_id in test_datasets:
