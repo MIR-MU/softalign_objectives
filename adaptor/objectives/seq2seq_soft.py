@@ -26,7 +26,8 @@ class MinimumRiskTraining(Sequence2Sequence):
 
     def _dynamic_beam_search(self, num_samples: int = 10):
         device = self.compatible_head_model.device
-        sample = {k: v.to(device) for k, v in self.samples_queue.pop().items() if k not in ("oid", "labels")}
+        sample = {k: v.to(device) for k, v in self.samples_queue.pop().items()
+                  if k not in ("oid", "labels", "decoder_input_ids")}
         outputs = self.compatible_head_model.generate(**sample,
                                                       # do_sample=True,
                                                       # top_k=3,
