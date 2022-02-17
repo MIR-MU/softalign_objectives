@@ -25,11 +25,8 @@ class MinimumRiskTraining(Sequence2Sequence):
             yield sample
 
     def _dynamic_beam_search(self, num_samples: int = 10):
-        # non-regressive inference -> all candidates are retrieved
-        # from the initial-inference logits (w/out decoder_ids)
-
-        # see https://huggingface.co/blog/how-to-generate#top-k-sampling
-        sample = {k: v for k, v in self.samples_queue.pop().items() if k not in ("oid", "labels")}
+        device = self.compatible_head_model.device
+        sample = {k: v.to(device) for k, v in self.samples_queue.pop().items() if k not in ("oid", "labels")}
         outputs = self.compatible_head_model.generate(**sample,
                                                       # do_sample=True,
                                                       # top_k=3,
