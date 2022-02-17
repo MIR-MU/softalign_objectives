@@ -70,8 +70,7 @@ class Sequence2SequenceMixin(SequentialMixin, abc.ABC):
     compatible_head: Head = Head.SEQ2SEQ
     collator: Callable[[List[Dict[str, torch.FloatTensor]]], List[Dict[str, torch.FloatTensor]]]
 
-    def __init__(self, *args,
-                 **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Refer to the documentation of superclass.
         """

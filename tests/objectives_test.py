@@ -6,6 +6,7 @@ from adaptor.objectives.classification import TokenClassification
 from adaptor.objectives.denoising import DenoisingObjective
 from adaptor.objectives.objective_base import Objective
 from adaptor.objectives.seq2seq import Sequence2Sequence
+from adaptor.objectives.seq2seq_soft import MinimumFlow, MinimumRiskTraining
 from utils import paths, test_base_models
 
 unsup_target_domain_texts = "mock_data/domain_unsup.txt"
@@ -107,6 +108,29 @@ def test_supervised_seq2seq_objective():
                                   texts_or_path=paths["texts"]["translation"],
                                   labels_or_path=paths["labels"]["translation"],
                                   batch_size=4)
+
+    assert_module_objective_ok(lang_module, objective)
+
+
+def test_mflow_objective():
+    lang_module = LangModule(test_base_models["translation_mono"])
+    objective = MinimumFlow(lang_module,
+                            texts_or_path=paths["texts"]["translation"],
+                            labels_or_path=paths["labels"]["translation"],
+                            batch_size=4)
+
+    assert_module_objective_ok(lang_module, objective)
+
+
+def test_mrt_objective():
+    from adaptor.evaluators.generative import BLEU
+
+    lang_module = LangModule(test_base_models["translation_mono"])
+    objective = MinimumRiskTraining(lang_module,
+                                    texts_or_path=paths["texts"]["translation"],
+                                    labels_or_path=paths["labels"]["translation"],
+                                    batch_size=4,
+                                    train_evaluators=[BLEU()])
 
     assert_module_objective_ok(lang_module, objective)
 
