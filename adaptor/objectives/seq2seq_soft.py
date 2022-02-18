@@ -69,9 +69,10 @@ class MinimumRiskTraining(Sequence2Sequence):
         if isinstance(trained_eval_metric, BLEU):
             ref_evaluations = ref_evaluations / 100
 
-        sequences_loss = torch.abs(outputs.sequences_scores - ref_evaluations.to(outputs.sequences_scores.device).log())
+        loss = torch.nn.L1Loss()
+        sequences_loss = loss(outputs.sequences_scores.exp(), ref_evaluations.to(outputs.sequences_scores.device))
 
-        return sequences_loss.exp().mean()
+        return sequences_loss.mean()
 
 
 class MinimumFlow(Sequence2Sequence):
