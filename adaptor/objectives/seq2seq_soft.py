@@ -150,14 +150,14 @@ class MinimumRiskTraining(Sequence2Sequence):
         # BLEU is scaled to <0, 100>, we want to keep it that way for reporting, but we scale it for the loss
         if isinstance(trained_metric, BLEU):
             ref_evaluations = ref_evaluations / 100
-        if not trained_metric.smaller_is_better:
-            expected_risk = 1 - ref_evaluations
-        else:
-            expected_risk = ref_evaluations
+        # if not trained_metric.smaller_is_better:
+        #     expected_risk = 1 - ref_evaluations
+        # else:
+        #     expected_risk = ref_evaluations
 
-        loss = scores_scaled * expected_risk
+        loss = torch.nn.L1Loss()(scores_scaled, ref_evaluations.softmax(-1))
 
-        return loss.mean()
+        return loss
 
 
 class MinimumFlow(Sequence2Sequence):

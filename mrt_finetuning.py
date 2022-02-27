@@ -27,8 +27,8 @@ test_firstn = 1000
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 wiki_val_pairs = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
-# opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
-# opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
 bible_pairs = OPUSDataset("Bible", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -36,16 +36,16 @@ bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-5,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-4,  # we set LR=2e-4 for pre-training experiments
                                          # stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          max_steps=100000,
-                                         gradient_accumulation_steps=10,
-                                         logging_steps=100,
-                                         eval_steps=1000,
+                                         gradient_accumulation_steps=30,
+                                         logging_steps=50,
+                                         eval_steps=50,
                                          save_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -60,27 +60,27 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_a
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 mrt_wiki = MinimumRiskTraining(lang_module,
-                               texts_or_path=wiki_pairs.source,
-                               labels_or_path=wiki_pairs.target,
-                               val_texts_or_path=wiki_val_pairs.source,
-                               val_labels_or_path=wiki_val_pairs.target,
+                               texts_or_path=opensub_pairs.source,
+                               labels_or_path=opensub_pairs.target,
+                               val_texts_or_path=opensub_val_pairs.source,
+                               val_labels_or_path=opensub_val_pairs.target,
                                source_lang_id=src_lang,
                                target_lang_id=tgt_lang,
-                               batch_size=2,
+                               batch_size=1,
                                train_evaluators=[BLEU()],
                                val_evaluators=val_metrics,
                                objective_id="Opensub")
-# seq_wiki = Sequence2Sequence(lang_module,
-#                              texts_or_path=wiki_pairs.source,
-#                              labels_or_path=wiki_pairs.target,
-#                              val_texts_or_path=wiki_val_pairs.source,
-#                              val_labels_or_path=wiki_val_pairs.target,
-#                              source_lang_id=src_lang,
-#                              target_lang_id=tgt_lang,
-#                              batch_size=2,
-#                              val_evaluators=val_metrics,
-#                              share_other_objective_head=mrt_wiki,
-#                              objective_id="Wiki")
+seq_wiki = Sequence2Sequence(lang_module,
+                             texts_or_path=wiki_pairs.source,
+                             labels_or_path=wiki_pairs.target,
+                             val_texts_or_path=wiki_val_pairs.source,
+                             val_labels_or_path=wiki_val_pairs.target,
+                             source_lang_id=src_lang,
+                             target_lang_id=tgt_lang,
+                             batch_size=2,
+                             val_evaluators=val_metrics,
+                             share_other_objective_head=mrt_wiki,
+                             objective_id="Wiki")
 
 seq_bible = Sequence2Sequence(lang_module,
                               texts_or_path=bible_pairs.source,
@@ -89,13 +89,13 @@ seq_bible = Sequence2Sequence(lang_module,
                               val_labels_or_path=bible_val_pairs.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=2,
+                              batch_size=1,
                               val_evaluators=val_metrics,
                               share_other_objective_head=mrt_wiki,
                               objective_id="Bible")
 
 schedule = ParallelSchedule(objectives=[mrt_wiki],
-                            extra_eval_objectives=[seq_bible],
+                            extra_eval_objectives=[seq_wiki, seq_bible],
                             args=training_arguments)
 
 # for training from scratch, we use LangModule.reinitialize() after the initialization of all training Objectives
