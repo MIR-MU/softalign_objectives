@@ -116,7 +116,7 @@ class MinimumRiskTraining(Sequence2Sequence):
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
-                      num_samples: int = 10) -> torch.FloatTensor:
+                      num_samples: int = 100) -> torch.FloatTensor:
         # github.com/pytorch/fairseq/blob/23adb0c110fdd5e9166b3939987c5d26df996ec3/fairseq/criterions/sequence_risk_criterion.py#L44
         # + https://aclanthology.org/P16-1159.pdf
         # Questions:
@@ -150,12 +150,14 @@ class MinimumRiskTraining(Sequence2Sequence):
         # BLEU is scaled to <0, 100>, we want to keep it that way for reporting, but we scale it for the loss
         if isinstance(trained_metric, BLEU):
             ref_evaluations = ref_evaluations / 100
-        # if not trained_metric.smaller_is_better:
-        #     expected_risk = 1 - ref_evaluations
-        # else:
-        #     expected_risk = ref_evaluations
+        if not trained_metric.smaller_is_better:
+            expected_risk = 1 - ref_evaluations
+        else:
+            expected_risk = ref_evaluations
 
+        # loss = (scores_scaled * expected_risk).mean()
         loss = torch.nn.L1Loss()(scores_scaled, ref_evaluations.softmax(-1))
+        # torch.nn.L1Loss()(scores_scaled * expected_risk.softmax(-1), torch.tensor(0))
 
         return loss
 
