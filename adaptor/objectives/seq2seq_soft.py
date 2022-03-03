@@ -45,8 +45,8 @@ class MinimumRiskTraining(Sequence2Sequence):
                  top_k_sampling: Optional[int] = 3,
                  greedy: Optional[bool] = False) -> Tuple[torch.LongTensor, torch.FloatTensor]:
         device = self.compatible_head_model.device
-        seq = torch.empty(num_samples, 0, dtype=torch.int64)
-        seq_probs = torch.empty(num_samples, 0, dtype=torch.float32)
+        seq = torch.empty(num_samples, 0, dtype=torch.int64).to(device)
+        seq_probs = torch.empty(num_samples, 0, dtype=torch.float32).to(device)
 
         assert all(v.shape[0] == 1 for v in inputs.values()), "We perform parallel sampling only for inputs of size 1."
         inputs_parallel = {k: v.expand(num_samples, -1) for k, v in inputs.items()}
