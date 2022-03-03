@@ -76,7 +76,14 @@ class MinimumRiskTraining(Sequence2Sequence):
                 if top_k_sampling is not None:
                     # top-k sampling: prob mass is distributed over top-k logits
                     top_k_args = tokens_probs.argsort(-1, descending=True)[:, :, :top_k_sampling]
-                    tokens_probs = tokens_probs.gather(-1, top_k_args).softmax(-1)
+                    tokens_probs_topk = tokens_probs.gather(-1, top_k_args)
+                    tokens_probs = tokens_probs_topk.softmax(-1)
+                    if not torch.isfinite(tokens_probs).all():
+                        print("outputs: %s" % outputs)
+                        print("tokens_probs: %s" % tokens_probs)
+                        print("top_k_args: %s" % top_k_args)
+                        print("tokens_probs_topk: %s" % tokens_probs_topk)
+                        print("tokens_probs: %s" % tokens_probs)
 
                 next_token_distr = torch.distributions.Categorical(tokens_probs)
                 sampled_next_token_rank = next_token_distr.sample()
