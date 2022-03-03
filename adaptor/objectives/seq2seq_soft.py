@@ -78,7 +78,11 @@ class MinimumRiskTraining(Sequence2Sequence):
                     tokens_probs_topk = tokens_probs.gather(-1, top_k_args)
                     tokens_probs = tokens_probs_topk.softmax(-1)
                     if not torch.isfinite(tokens_probs).all():
+                        print("inputs: %s" % inputs)
                         print("decoder_input: %s" % decoder_input)
+                        print("past: %s" % past)
+                        print("input text: %s" % self.tokenizer.batch_decode(inputs["input_ids"]))
+                        print("outputs.logits: %s" % outputs.logits)
                         print("tokens_probs: %s" % tokens_probs)
                         print("top_k_args: %s" % top_k_args)
                         print("tokens_probs_topk: %s" % tokens_probs_topk)
