@@ -53,19 +53,18 @@ class MinimumRiskTraining(Sequence2Sequence):
 
         with self.tokenizer.as_target_tokenizer():
             init_outputs = self.tokenizer("", return_tensors="pt").input_ids.repeat(num_samples, 1)
-            decoder_input = self.compatible_head_model.prepare_decoder_input_ids_from_labels(init_outputs).tolist()
+            decoder_input_l = self.compatible_head_model.prepare_decoder_input_ids_from_labels(init_outputs).tolist()
+            decoder_input = torch.tensor(decoder_input_l).to(device)
 
         encoder_outputs = self.compatible_head_model.model.encoder(**inputs)
         encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.expand(num_samples, -1, -1)
         past = None
 
         while True:
-            decoder_input_t = torch.tensor(decoder_input).to(device)
-
             outputs = self.compatible_head_model(attention_mask=inputs_parallel["attention_mask"],
                                                  input_ids=None,
                                                  past_key_values=past,
-                                                 decoder_input_ids=decoder_input_t,
+                                                 decoder_input_ids=decoder_input,
                                                  encoder_outputs=encoder_outputs)
             tokens_probs = outputs.logits.softmax(-1)
             if greedy:
@@ -79,7 +78,7 @@ class MinimumRiskTraining(Sequence2Sequence):
                     tokens_probs_topk = tokens_probs.gather(-1, top_k_args)
                     tokens_probs = tokens_probs_topk.softmax(-1)
                     if not torch.isfinite(tokens_probs).all():
-                        print("outputs: %s" % outputs)
+                        print("decoder_input: %s" % decoder_input)
                         print("tokens_probs: %s" % tokens_probs)
                         print("top_k_args: %s" % top_k_args)
                         print("tokens_probs_topk: %s" % tokens_probs_topk)
@@ -133,7 +132,7 @@ class MinimumRiskTraining(Sequence2Sequence):
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
-                      num_samples: int = 100) -> torch.FloatTensor:
+                      num_samples: int = 10) -> torch.FloatTensor:
         # github.com/pytorch/fairseq/blob/23adb0c110fdd5e9166b3939987c5d26df996ec3/fairseq/criterions/sequence_risk_criterion.py#L44
         # + https://aclanthology.org/P16-1159.pdf
         # Questions:
@@ -179,6 +178,11 @@ class MinimumRiskTraining(Sequence2Sequence):
         # torch.nn.L1Loss()(scores_scaled * expected_risk.softmax(-1), torch.tensor(0))
 
         return loss
+
+
+class GenerationSeq2Seq(Sequence2Sequence):
+    pass
+    # TODO
 
 
 class MinimumFlow(Sequence2Sequence):
