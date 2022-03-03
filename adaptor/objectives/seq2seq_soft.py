@@ -39,23 +39,30 @@ class MinimumRiskTraining(Sequence2Sequence):
                                                       num_return_sequences=1)
         return outputs
 
-    def sample_one(self, inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
-                   top_k_sampling: Optional[int] = 3,
-                   greedy: Optional[bool] = False) -> Tuple[torch.LongTensor, torch.FloatTensor]:
+    def sample_n(self,
+                 inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
+                 num_samples: int,
+                 top_k_sampling: Optional[int] = 3,
+                 greedy: Optional[bool] = False) -> Tuple[torch.LongTensor, torch.FloatTensor]:
         device = self.compatible_head_model.device
-        seq = []
-        seq_probs = []
+        seq = torch.empty(num_samples, 0, dtype=torch.int64)
+        seq_probs = torch.empty(num_samples, 0, dtype=torch.float32)
+
+        assert all(v.shape[0] == 1 for v in inputs.values()), "We perform parallel sampling only for inputs of size 1."
+        inputs_parallel = {k: v.expand(num_samples, -1) for k, v in inputs.items()}
+
         with self.tokenizer.as_target_tokenizer():
-            init_outputs = self.tokenizer("", return_tensors="pt").input_ids
+            init_outputs = self.tokenizer("", return_tensors="pt").input_ids.repeat(num_samples, 1)
             decoder_input = self.compatible_head_model.prepare_decoder_input_ids_from_labels(init_outputs).tolist()
 
         encoder_outputs = self.compatible_head_model.model.encoder(**inputs)
+        encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.expand(num_samples, -1, -1)
         past = None
 
         while True:
             decoder_input_t = torch.tensor(decoder_input).to(device)
 
-            outputs = self.compatible_head_model(attention_mask=inputs["attention_mask"],
+            outputs = self.compatible_head_model(attention_mask=inputs_parallel["attention_mask"],
                                                  input_ids=None,
                                                  past_key_values=past,
                                                  decoder_input_ids=decoder_input_t,
@@ -72,24 +79,36 @@ class MinimumRiskTraining(Sequence2Sequence):
                     tokens_probs = tokens_probs.gather(-1, top_k_args).softmax(-1)
 
                 next_token_distr = torch.distributions.Categorical(tokens_probs)
-                sampled_next_token_rank = next_token_distr.sample().item()
+                sampled_next_token_rank = next_token_distr.sample()
                 if top_k_sampling is not None:
-                    next_token_id = top_k_args[0, 0, sampled_next_token_rank].item()
+                    next_token_id = top_k_args[0, 0, sampled_next_token_rank]
                     next_token_prob = tokens_probs[0, 0, sampled_next_token_rank]
                 else:
                     next_token_id = sampled_next_token_rank
                     next_token_prob = tokens_probs[0, 0, next_token_id]
 
-            seq.append(next_token_id)
-            seq_probs.append(next_token_prob)
+            seq = torch.hstack([seq, next_token_id])
+            seq_probs = torch.hstack([seq_probs, next_token_prob])
 
             past = outputs.past_key_values
 
-            if next_token_id == self.tokenizer.eos_token_id or len(seq) > 3 * len(inputs["input_ids"][0]):
-                agg_prob = torch.hstack(seq_probs).mean()
-                return torch.tensor(seq), agg_prob  # type: ignore
+            # termination check -> when all the sequences generated <eos>, we prune to the first <eos>,
+            # aggregate scores for policy gradients and return sequences with their scores
+            seq_terminated = (seq == self.tokenizer.eos_token_id).any(dim=1)
+            generated_length = len(seq[0])
+            if seq_terminated.all() or generated_length > 3 * len(inputs["input_ids"][0]):
+                # prune sequences to the earliest-eos-token
+                earliest_eoses = (seq == self.tokenizer.eos_token_id).long().argmax(-1)
+                agg_probs = []
+                for seq_idx, eos_idx in enumerate(earliest_eoses):
+                    seq[seq_idx, eos_idx + 1:] = self.tokenizer.pad_token_id
+                    # eos_idx+1 => including eos token prob
+                    pruned_seq_prob = seq_probs[seq_idx, :eos_idx + 1].log().sum()
+                    agg_probs.append(pruned_seq_prob)
 
-            decoder_input[0] = [next_token_id]
+                return seq, torch.hstack(agg_probs)  # type: ignore
+
+            decoder_input = next_token_id
 
     def do_sample(self,
                   inputs: BatchEncoding,
@@ -98,20 +117,11 @@ class MinimumRiskTraining(Sequence2Sequence):
         Samples a given set of translations using Monte Carlo.
         :return an iterator over tuples of [selected sequence, sequence score]
         """
-        sampled = 0
-        while sampled < num_samples:
-            batch_attributes = inputs.keys()
+        batch_attributes = inputs.keys()
 
-            for input_tuple in zip(*(inputs[attr] for attr in batch_attributes)):
-                input_tuple_batch = (i.unsqueeze(0) for i in input_tuple)
-                yield self.sample_one(dict(zip(batch_attributes, input_tuple_batch)))
-
-            sampled += 1
-
-    def _static_sample(self, lm_logit_outputs: torch.FloatTensor,
-                       num_samples: int = 10) -> Tuple[torch.LongTensor, torch.FloatTensor]:
-        # TODO: beam search can be performed on statically-inferred logits, with lower accuracy but significantly faster
-        pass
+        for input_tuple in zip(*(inputs[attr] for attr in batch_attributes)):
+            input_tuple_batch = (i.unsqueeze(0) for i in input_tuple)
+            yield self.sample_n(dict(zip(batch_attributes, input_tuple_batch)), num_samples)
 
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
@@ -125,22 +135,24 @@ class MinimumRiskTraining(Sequence2Sequence):
 
         # outputs = self._dynamic_beam_search(num_samples)
         device = self.compatible_head_model.device
-        sample = {k: v.to(device) for k, v in self.samples_queue.pop().items()
-                  if k not in ("oid", "labels", "decoder_input_ids")}
+        batch = {k: v.to(device) for k, v in self.samples_queue.pop().items()
+                 if k not in ("oid", "labels", "decoder_input_ids")}
 
         hypotheses, scores, evaluations = [], [], []
         refs = itertools.chain(*([ref] * num_samples for ref in self.tokenizer.batch_decode(labels,
                                                                                             skip_special_tokens=True)))
         trained_metric = self.evaluators["train"][0]
 
-        for ref, (seq_ids, score) in zip(refs, self.do_sample(sample, num_samples)):
-            hyp = self.tokenizer.decode(seq_ids)
-            hypotheses.append(self.tokenizer.decode(seq_ids))
+        for one_label, (seq_ids, score) in zip(labels, self.do_sample(batch, num_samples)):
+            hyps = self.tokenizer.batch_decode(seq_ids, skip_special_tokens=True)
+            one_reference = self.tokenizer.decode([l if l > 0 else 0 for l in one_label], skip_special_tokens=True)
+            hypotheses.append(hyps)
             scores.append(score)
 
-            evaluations.append(trained_metric.evaluate_str([ref], [hyp]))
+            evaluations.extend([trained_metric.evaluate_str([one_reference], [hyp]) for hyp in hyps])
+
         scores = torch.vstack(scores)
-        scores_scaled = scores.flatten() / scores.sum()
+        scores_scaled = scores.flatten()
 
         # ignore-loss tokens (-100) are replaced with padding, and removed in batch_decode
         labels[labels < 0] = self.tokenizer.pad_token_id
@@ -155,15 +167,14 @@ class MinimumRiskTraining(Sequence2Sequence):
         else:
             expected_risk = ref_evaluations
 
-        # loss = (scores_scaled * expected_risk).mean()
-        loss = torch.nn.L1Loss()(scores_scaled, ref_evaluations.softmax(-1))
+        loss = (scores_scaled * expected_risk.log()).mean()
+        # loss = torch.nn.L1Loss()(scores_scaled, ref_evaluations.softmax(-1))
         # torch.nn.L1Loss()(scores_scaled * expected_risk.softmax(-1), torch.tensor(0))
 
         return loss
 
 
 class MinimumFlow(Sequence2Sequence):
-
     bertscore_model = "bert-base-multilingual-cased"
     multinomial: bool
     sample_trials: int

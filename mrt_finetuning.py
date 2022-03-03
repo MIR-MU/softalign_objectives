@@ -36,14 +36,14 @@ bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-4,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-5,  # we set LR=2e-4 for pre-training experiments
                                          # stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          max_steps=100000,
-                                         gradient_accumulation_steps=30,
+                                         # gradient_accumulation_steps=10,
                                          logging_steps=50,
                                          eval_steps=50,
                                          save_steps=1000,
@@ -77,7 +77,7 @@ seq_wiki = Sequence2Sequence(lang_module,
                              val_labels_or_path=wiki_val_pairs.target,
                              source_lang_id=src_lang,
                              target_lang_id=tgt_lang,
-                             batch_size=2,
+                             batch_size=4,
                              val_evaluators=val_metrics,
                              share_other_objective_head=mrt_wiki,
                              objective_id="Wiki")
@@ -89,7 +89,7 @@ seq_bible = Sequence2Sequence(lang_module,
                               val_labels_or_path=bible_val_pairs.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=1,
+                              batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=mrt_wiki,
                               objective_id="Bible")
