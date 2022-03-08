@@ -77,16 +77,13 @@ class MinimumRiskTraining(Sequence2Sequence):
                     top_k_args = tokens_probs.argsort(-1, descending=True)[:, :, :top_k_sampling]
                     tokens_probs_topk = tokens_probs.gather(-1, top_k_args)
                     tokens_probs = tokens_probs_topk.softmax(-1)
-                    if not torch.isfinite(tokens_probs).all():
-                        print("inputs: %s" % inputs)
-                        print("decoder_input: %s" % decoder_input)
-                        print("past: %s" % past)
-                        print("input text: %s" % self.tokenizer.batch_decode(inputs["input_ids"]))
-                        print("outputs.logits: %s" % outputs.logits)
-                        print("tokens_probs: %s" % tokens_probs)
-                        print("top_k_args: %s" % top_k_args)
-                        print("tokens_probs_topk: %s" % tokens_probs_topk)
-                        print("tokens_probs: %s" % tokens_probs)
+                    # TODO debug: erroreous sample:
+                    # inputs = {'input_ids': tensor([[ 4086,    36,    44,    34,    31,   251,     7,     8,
+                    # 72,   846, 2374,     9,     0, 62508, 62508, 62508]]),
+                    # 'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0]])
+                    # decoder_inputs = tensor([[62508], [62508], [62508], [62508], [62508], [62508],
+                    # [62508], [62508], [62508], [62508]], device='cuda:0')
+                    # past = None
 
                 next_token_distr = torch.distributions.Categorical(tokens_probs)
                 sampled_next_token_rank = next_token_distr.sample()
@@ -136,7 +133,7 @@ class MinimumRiskTraining(Sequence2Sequence):
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
-                      num_samples: int = 10) -> torch.FloatTensor:
+                      num_samples: int = 150) -> torch.FloatTensor:
         # github.com/pytorch/fairseq/blob/23adb0c110fdd5e9166b3939987c5d26df996ec3/fairseq/criterions/sequence_risk_criterion.py#L44
         # + https://aclanthology.org/P16-1159.pdf
         # Questions:
@@ -180,7 +177,8 @@ class MinimumRiskTraining(Sequence2Sequence):
         loss = (scores_scaled * expected_risk.log()).mean()
         # loss = torch.nn.L1Loss()(scores_scaled, ref_evaluations.softmax(-1))
         # torch.nn.L1Loss()(scores_scaled * expected_risk.softmax(-1), torch.tensor(0))
-
+        if not torch.isfinite(loss) or not 0 <= loss <= 10:
+            return torch.tensor(0., requires_grad=True).to(loss.device)
         return loss
 
 

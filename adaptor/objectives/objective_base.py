@@ -140,7 +140,9 @@ class Objective(abc.ABC):
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
         for evaluator in self.evaluators[split]:
             dataset = self.get_dataset(split, 0, self.compatible_head_model.device,
-                                       firstn=self.max_samples_per_log[split], add_oid=False)
+                                       firstn=self.max_samples_per_log[split],
+                                       add_oid=False,
+                                       is_training_dataset=False)
 
             # evaluator should already return an aggregated value, so unlike loss, we don't average it
             evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
@@ -247,7 +249,8 @@ class Objective(abc.ABC):
                     objective_i: int,
                     device: Union[str, torch.device],
                     firstn: Optional[int] = None,
-                    add_oid: bool = True) -> TransformerAdaptationDataset:
+                    add_oid: bool = True,
+                    is_training_dataset: bool = True) -> TransformerAdaptationDataset:
         """
         Default logic for wrapping the inputs iterator into torch.IterableDataset, used in Trainer.train_dataloaer.
         :param split: A split of the retrieved dataset. `train` or `eval`.
@@ -255,10 +258,14 @@ class Objective(abc.ABC):
         :param device: Device to transfer this data set to.
         :param firstn: If given, a number of the retrieved items from the dataset.
         :param add_oid: Whether to append objective id to the match. Required for forward pass over LangModule.
+        :param is_training_dataset: Whether this dataset is used for training -> if to update the epochs counter.
 
         :return: TransformerAdaptationDataset wrapping a data set of this objective.
         """
-        self.epoch += 1 if split == "train" else 0
+        if split == "train" and is_training_dataset:
+            # increment epoch only for train split and only for the dataset used as training
+            # - get_dataset is also called from self.per_objective_log, or specific objectives
+            self.epoch += 1 if split == "train" else 0
 
         self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size,
                                          desc=str(self),
@@ -274,6 +281,10 @@ class Objective(abc.ABC):
 
         def _add_oid(sample: Union[BatchEncoding, Dict[str, torch.LongTensor]]) -> Dict[str, torch.LongTensor]:
             sample["oid"] = id(self)
+            return sample
+
+        def _maybe_update_epoch(sample: Union[BatchEncoding, Dict[str, torch.LongTensor]]) -> Dict[str, torch.LongTensor]:
+
             return sample
 
         device_inputs_iter = map(_sample_to_device, inputs_iter)
