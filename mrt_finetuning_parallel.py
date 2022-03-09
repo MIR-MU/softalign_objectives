@@ -80,7 +80,7 @@ seq_opensub = Sequence2Sequence(lang_module,
                                 batch_size=1,
                                 val_evaluators=val_metrics,
                                 share_other_objective_head=mrt_opensub,
-                                objective_id="Wiki")
+                                objective_id="Opensub")
 
 seq_wiki = Sequence2Sequence(lang_module,
                              texts_or_path=wiki_pairs.source,
