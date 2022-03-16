@@ -448,7 +448,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
 
                 hyp_loss = loss_inst(hyp_token_scores, torch.vstack(pseudolabels))
                 # loss is weighted by an overall BERTScore of the generated hypothesis
-                loss_weighted = hyp_loss * hyps_quality
+                loss_weighted = hyp_loss * hyps_quality.to(self.device)
 
                 losses.append(loss_weighted.mean())
 
