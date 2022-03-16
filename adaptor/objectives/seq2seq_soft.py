@@ -183,6 +183,8 @@ class TokenBertScoreObjective(MinimumRiskTraining):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.device = self.compatible_head_model.device
         self.scorer = BERTScore()
 
     def sample_n(self,
@@ -374,7 +376,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         hyps_text = self.tokenizer.batch_decode(hyps, skip_special_tokens=True)
 
         embedder_inputs = self.scorer.scorer._tokenizer(hyps_text, return_tensors="pt",
-                                                        truncation="longest_first", padding=True)
+                                                        truncation="longest_first", padding=True).to(self.device)
         embeddings = self.scorer.scorer._model(**embedder_inputs)[0]
 
         embedder_ids_all = embedder_inputs["input_ids"]
@@ -403,9 +405,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                       labels: torch.LongTensor,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        device = self.compatible_head_model.device
-
-        batch = {k: v.to(device) for k, v in self.samples_queue.pop().items()}
+        batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
@@ -419,7 +419,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
 
             all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_text]) for hyp_text in hyps_text])
 
-            ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text, return_tensors="pt")
+            ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text, return_tensors="pt").to(self.device)
             ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
 
             # generate pseudo-labels that we differentiate against tokens_scores
