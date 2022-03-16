@@ -434,7 +434,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                 for hyp, hyp_candidates, in zip(hyps_ids[non_terminated_hyps_mask], candidates[non_terminated_hyps_mask]):
                     pos_permutations_hyps = []
                     for cand_id in hyp_candidates[:, pos]:
-                        permuted_hyp = torch.cat([hyp[:pos], torch.tensor([cand_id]), hyp[pos + 1:]], 0)
+                        permuted_hyp = torch.cat([hyp[:pos], torch.tensor([cand_id]).to(self.device), hyp[pos + 1:]], 0)
                         pos_permutations_hyps.append(permuted_hyp)
                     pos_permutations_hyps = torch.vstack(pos_permutations_hyps)
                     # TODO: check the transpositions
