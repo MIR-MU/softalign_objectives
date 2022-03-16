@@ -184,7 +184,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.device = self.compatible_head_model.device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.scorer = BERTScore()
 
     def sample_n(self,
