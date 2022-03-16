@@ -383,7 +383,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         matched_embeddings_pos = torch.tensor([self._best_aligned_embedding_pos(own_ids, predicted_pos, embedder_ids)
                                                for own_ids, embedder_ids in zip(hyps, embedder_ids_all)])
 
-        matched_embeddings_idx = matched_embeddings_pos.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 768)
+        matched_embeddings_idx = matched_embeddings_pos.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 768).to(self.device)
         matched_embeddings = embeddings.gather(1, matched_embeddings_idx).squeeze(1)
 
         embeddings_dists = torch.cdist(matched_embeddings, ref_embedding)
