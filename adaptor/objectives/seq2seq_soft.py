@@ -334,7 +334,8 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         # search both (sorted) offset lists around the requested hyp_pos, find candidates and pick the best-intersector
         searched_offset = own_offsets[hyp_pos - 1], own_offsets[hyp_pos]
         best_match_intersection = 0
-
+        if hyp_pos == 19:
+            pass
         last_match = hyp_pos
         for embedder_offset_dist in range(len(embedder_offsets)):
             fwd_idx = hyp_pos + embedder_offset_dist
@@ -354,13 +355,15 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                                     for s in self.scorer.scorer._tokenizer.batch_decode(embedder_ids)][last_match]
                 if embedded_segment in self.scorer.scorer._tokenizer.all_special_tokens:
                     embedded_segment = ""
+
                 generated_segment = self.tokenizer.decode(hyp_ids[hyp_pos])
 
                 if embedded_segment and generated_segment \
                         and embedded_segment not in self.scorer.scorer._tokenizer.all_special_tokens:
                     # assert there is some intersection for all nonempty segments
                     # TODO: check an impact of embedding empty segments by the closest embeddings
-                    assert set(embedded_segment).intersection(generated_segment)
+                    assert set(embedded_segment).intersection(generated_segment), \
+                        "embedded: %s, \ngenerated: %s, position: %s" % (embedded_segment, generated_segment, hyp_pos)
 
                 return last_match
 
@@ -400,6 +403,12 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         past_tokens = self.compatible_head_model.prepare_decoder_input_ids_from_labels(hyp_ids)
         return self.compatible_head_model(**input_batch, decoder_input_ids=past_tokens)
 
+    def _get_decodeable_hyps_mask(self, hyps_ids: torch.LongTensor) -> torch.Tensor:
+        decoded_strs = self.tokenizer.batch_decode(hyps_ids, skip_special_tokens=True)
+        embedder_encodings = self.scorer.scorer._tokenizer(decoded_strs, return_tensors="pt", padding=True).input_ids
+        encoding_contains_unks = (embedder_encodings == self.scorer.scorer._tokenizer.unk_token_id).any(axis=1)
+        return ~encoding_contains_unks
+
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
@@ -417,34 +426,46 @@ class TokenBertScoreObjective(MinimumRiskTraining):
             hyps_text = self.tokenizer.batch_decode(hyps_ids, skip_special_tokens=True)
             ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
 
+            # remove hypotheses that can not be encoded with the embedder
+            decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_ids).to(self.device)
+
             all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_text]) for hyp_text in hyps_text])
 
             ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text, return_tensors="pt").to(self.device)
             ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
 
             # generate pseudo-labels that we differentiate against tokens_scores
-            for pos in range(2, hyps_ids.shape[-1]):
+            for pos in range(19, hyps_ids.shape[-1]):
                 # a first max val of zero/one tensor of <eos> matches
                 hyps_termination_pos = (hyps_ids == self.tokenizer.eos_token_id).long().argmax(-1)
                 non_terminated_hyps_mask = pos <= hyps_termination_pos
+                label_hyps_mask = non_terminated_hyps_mask & decodeable_hyps_mask
 
                 pseudolabels = []
-                hyps_quality = all_hyps_score[non_terminated_hyps_mask]
+                hyps_quality = all_hyps_score[label_hyps_mask]
 
-                for hyp, hyp_candidates, in zip(hyps_ids[non_terminated_hyps_mask], candidates[non_terminated_hyps_mask]):
+                for hyp, hyp_candidates, in zip(hyps_ids[label_hyps_mask], candidates[label_hyps_mask]):
                     pos_permutations_hyps = []
                     for cand_id in hyp_candidates[:, pos]:
                         permuted_hyp = torch.cat([hyp[:pos], torch.tensor([cand_id]).to(self.device), hyp[pos + 1:]], 0)
                         pos_permutations_hyps.append(permuted_hyp)
                     pos_permutations_hyps = torch.vstack(pos_permutations_hyps)
-                    # TODO: check the transpositions
-                    # TODO: second input, this returns different dim than input
-                    hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
+
+                    # input containing [UNK]s, that break the alignment -- TODO could be handled smarter in the future
+                    # debug_hyps_text = 'Ukrajinasky doktor opededd traumato nejvyšší kategorie, Doktor lékařské vědyeny,  výzkum činnosti na nemoci uho vlády instituce,Tranmuologické aulopediky aRS Ukraine"ý"'
+                    # debug_hyps = self.tokenizer([debug_hyps_text])
+                    # pos = 19
+                    # hyps_similarities = self._evaluate_position_in_hyps(debug_hyps.input_ids, pos, ref_embeddings)
+                    try:
+                        hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
+                    except AssertionError as e:
+                        print("Hyp: %s\nRef: %s\nPos: %s\nError: %s" % (self.tokenizer.decode(hyp), ref_text, pos, e))
+                        break
 
                     # pseudo labels are a probability distribution over top-n target tokens within the context of top-1
                     pseudolabels.append(hyps_similarities)
 
-                hyp_token_scores = tokens_scores[non_terminated_hyps_mask, :, pos]
+                hyp_token_scores = tokens_scores[label_hyps_mask, :, pos]
 
                 hyp_loss = loss_inst(hyp_token_scores, torch.vstack(pseudolabels))
                 # loss is weighted by an overall BERTScore of the generated hypothesis
