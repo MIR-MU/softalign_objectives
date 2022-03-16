@@ -359,13 +359,16 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                 generated_segment = self.tokenizer.decode(hyp_ids[hyp_pos])
 
                 if embedded_segment and generated_segment \
-                        and embedded_segment not in self.scorer.scorer._tokenizer.all_special_tokens:
+                        and embedded_segment not in self.scorer.scorer._tokenizer.all_special_tokens \
+                        and generated_segment not in self.tokenizer.all_special_tokens:
                     # assert there is some intersection for all nonempty segments
                     # TODO: check an impact of embedding empty segments by the closest embeddings
                     assert set(embedded_segment).intersection(generated_segment), \
                         "embedded: %s, \ngenerated: %s, position: %s" % (embedded_segment, generated_segment, hyp_pos)
-
-                return last_match
+                    return last_match
+                else:
+                    # ignore loss for the tokens where we can not assert a match
+                    return -100
 
             if fwd_intersection > best_match_intersection:
                 last_match = fwd_idx
@@ -385,15 +388,22 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         embedder_ids_all = embedder_inputs["input_ids"]
         matched_embeddings_pos = torch.tensor([self._best_aligned_embedding_pos(own_ids, predicted_pos, embedder_ids)
                                                for own_ids, embedder_ids in zip(hyps, embedder_ids_all)])
-
+        ignored_pos = matched_embeddings_pos == -100
         matched_embeddings_idx = matched_embeddings_pos.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 768).to(self.device)
+        matched_embeddings_idx[matched_embeddings_idx == -100] = 0
         matched_embeddings = embeddings.gather(1, matched_embeddings_idx).squeeze(1)
 
         embeddings_dists = torch.cdist(matched_embeddings, ref_embedding)
         embeddings_best_dists = embeddings_dists.min(-1).values
+        # do not used ignored indices in normalization
+        embeddings_best_dists[ignored_pos] = embeddings_best_dists.median()
+
         embeddings_dists_scaled = (embeddings_best_dists - embeddings_best_dists.min()) / \
                                   (embeddings_best_dists.max() - embeddings_best_dists.min())
         embeddings_similarities = 1 - embeddings_dists_scaled
+
+        # ignore unmatched indices from the loss
+        embeddings_similarities[ignored_pos] = -100
 
         return embeddings_similarities
 
@@ -452,22 +462,26 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                     pos_permutations_hyps = torch.vstack(pos_permutations_hyps)
 
                     # input containing [UNK]s, that break the alignment -- TODO could be handled smarter in the future
-                    # debug_hyps_text = 'Ukrajinasky doktor opededd traumato nejvyšší kategorie, Doktor lékařské vědyeny,  výzkum činnosti na nemoci uho vlády instituce,Tranmuologické aulopediky aRS Ukraine"ý"'
-                    # debug_hyps = self.tokenizer([debug_hyps_text])
-                    # pos = 19
-                    # hyps_similarities = self._evaluate_position_in_hyps(debug_hyps.input_ids, pos, ref_embeddings)
-                    try:
-                        hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
-                    except AssertionError as e:
-                        print("Hyp: %s\nRef: %s\nPos: %s\nError: %s" % (self.tokenizer.decode(hyp), ref_text, pos, e))
-                        break
+                    # debug_hyps = torch.tensor([[  185, 17524,   765,  1248,  1987,    41,  4834,    95,    73,  4314,
+                    #   32,   940,    52,  5796,  5020,     3,  4557, 14648, 15830,    38,
+                    #  371,     3,    16,  5028,  2320,    21, 11941,   112,    53,  5702,
+                    # 4684,     3,   378,   932,   277, 12760,     5,    32,   149, 29004,
+                    #  197,     0,  8730,  8510,   201,   107,   201,     0]])
+                    # pos = 41
+                    # hyps_similarities = self._evaluate_position_in_hyps(debug_hyps, pos, ref_embeddings)
+
+                    hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
 
                     # pseudo labels are a probability distribution over top-n target tokens within the context of top-1
                     pseudolabels.append(hyps_similarities)
 
                 hyp_token_scores = tokens_scores[label_hyps_mask, :, pos]
+                hyp_pseudolabels = torch.vstack(pseudolabels)
 
-                hyp_loss = loss_inst(hyp_token_scores, torch.vstack(pseudolabels))
+                # handle ignored = unmatched similarities: normalize them from the loss
+                hyp_pseudolabels[hyp_pseudolabels == -100] = hyp_token_scores[hyp_pseudolabels == -100]
+
+                hyp_loss = loss_inst(hyp_token_scores, hyp_pseudolabels)
                 # loss is weighted by an overall BERTScore of the generated hypothesis
                 loss_weighted = hyp_loss * hyps_quality.to(self.device)
 
