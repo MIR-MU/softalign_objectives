@@ -179,6 +179,10 @@ class MinimumRiskTraining(Sequence2Sequence):
         return loss
 
 
+# TODO: remove
+torch.autograd.set_detect_anomaly(True)
+
+
 class TokenBertScoreObjective(MinimumRiskTraining):
 
     def __init__(self, *args, **kwargs):
@@ -338,13 +342,22 @@ class TokenBertScoreObjective(MinimumRiskTraining):
             pass
         last_match = hyp_pos
         for embedder_offset_dist in range(len(embedder_offsets)):
-            fwd_idx = hyp_pos + embedder_offset_dist
-            # TODO: calibrate indexes on an example
-            fwd_offset = embedder_offsets[fwd_idx - 1], embedder_offsets[fwd_idx]
+            new_fwd_idx = hyp_pos + embedder_offset_dist
+            try:
+                fwd_offset = embedder_offsets[new_fwd_idx - 1], embedder_offsets[new_fwd_idx]
+                fwd_idx = new_fwd_idx
+            except IndexError:
+                # lookup reached end of sequence -> we will skip it
+                pass
             fwd_intersection = _offsets_intersection(searched_offset, fwd_offset)
 
-            bwd_idx = hyp_pos - embedder_offset_dist
-            bwd_offset = embedder_offsets[bwd_idx - 1], embedder_offsets[bwd_idx]
+            new_bwd_idx = hyp_pos - embedder_offset_dist
+            try:
+                bwd_offset = embedder_offsets[new_bwd_idx - 1], embedder_offsets[new_bwd_idx]
+                bwd_idx = new_bwd_idx
+            except IndexError:
+                # lookup reached beginning of sequence -> we will skip it
+                pass
             bwd_intersection = _offsets_intersection(searched_offset, bwd_offset)
 
             # no better match can follow after any intersection has been already found
@@ -386,16 +399,20 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         embeddings = self.scorer.scorer._model(**embedder_inputs)[0]
 
         embedder_ids_all = embedder_inputs["input_ids"]
+        # construct the embedder index corresponding to the matched hypotheses position
         matched_embeddings_pos = torch.tensor([self._best_aligned_embedding_pos(own_ids, predicted_pos, embedder_ids)
                                                for own_ids, embedder_ids in zip(hyps, embedder_ids_all)])
-        ignored_pos = matched_embeddings_pos == -100
-        matched_embeddings_idx = matched_embeddings_pos.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 768).to(self.device)
-        matched_embeddings_idx[matched_embeddings_idx == -100] = 0
-        matched_embeddings = embeddings.gather(1, matched_embeddings_idx).squeeze(1)
+        ignored_pos = matched_embeddings_pos.clone() == -100
+        matched_embeddings_pos[matched_embeddings_pos == -100] = 0
+        matched_embeddings_idx = matched_embeddings_pos.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 768)
+
+        # pick the matched embeddings and match them against the embeddings of the reference
+        matched_embeddings = embeddings.gather(1, matched_embeddings_idx.to(self.device)).squeeze(1)
 
         embeddings_dists = torch.cdist(matched_embeddings, ref_embedding)
-        embeddings_best_dists = embeddings_dists.min(-1).values
+        embeddings_best_dists = embeddings_dists.min(-1).values.clone()
         # do not used ignored indices in normalization
+        print("ignored_pos: %s" % matched_embeddings_pos)
         embeddings_best_dists[ignored_pos] = embeddings_best_dists.median()
 
         embeddings_dists_scaled = (embeddings_best_dists - embeddings_best_dists.min()) / \
@@ -445,7 +462,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
             ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
 
             # generate pseudo-labels that we differentiate against tokens_scores
-            for pos in range(19, hyps_ids.shape[-1]):
+            for pos in range(2, hyps_ids.shape[-1]-5):
                 # a first max val of zero/one tensor of <eos> matches
                 hyps_termination_pos = (hyps_ids == self.tokenizer.eos_token_id).long().argmax(-1)
                 non_terminated_hyps_mask = pos <= hyps_termination_pos
@@ -469,8 +486,8 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                     #  197,     0,  8730,  8510,   201,   107,   201,     0]])
                     # pos = 41
                     # hyps_similarities = self._evaluate_position_in_hyps(debug_hyps, pos, ref_embeddings)
-
-                    hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
+                    with torch.no_grad():
+                        hyps_similarities = self._evaluate_position_in_hyps(pos_permutations_hyps, pos, ref_embeddings)
 
                     # pseudo labels are a probability distribution over top-n target tokens within the context of top-1
                     pseudolabels.append(hyps_similarities)
@@ -485,7 +502,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                 # loss is weighted by an overall BERTScore of the generated hypothesis
                 loss_weighted = hyp_loss * hyps_quality.to(self.device)
 
-                losses.append(loss_weighted.mean())
+                losses.append(loss_weighted)
 
         return torch.hstack(losses).mean()
 
