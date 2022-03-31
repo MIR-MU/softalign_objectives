@@ -20,8 +20,8 @@ src_lang = "en"
 tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
-train_firstn = 1000
-val_firstn = 2
+train_firstn = None
+val_firstn = 100
 test_firstn = 1000
 
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
@@ -43,7 +43,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          max_steps=100000,
-                                         # gradient_accumulation_steps=10,
+                                         gradient_accumulation_steps=4,
                                          logging_steps=50,
                                          eval_steps=20,
                                          save_steps=1000,
@@ -66,7 +66,7 @@ tokenbsc_wiki = SeqBertScoreObjective(lang_module,
                                       val_labels_or_path=wiki_val_pairs.target,
                                       source_lang_id=src_lang,
                                       target_lang_id=tgt_lang,
-                                      batch_size=1,
+                                      batch_size=30,
                                       val_evaluators=val_metrics,
                                       objective_id="Opensub")
 seq_wiki = Sequence2Sequence(lang_module,
@@ -76,7 +76,7 @@ seq_wiki = Sequence2Sequence(lang_module,
                              val_labels_or_path=wiki_val_pairs.target,
                              source_lang_id=src_lang,
                              target_lang_id=tgt_lang,
-                             batch_size=1,
+                             batch_size=30,
                              val_evaluators=val_metrics,
                              share_other_objective_head=tokenbsc_wiki,
                              objective_id="Wiki")
@@ -88,7 +88,7 @@ seq_bible = Sequence2Sequence(lang_module,
                               val_labels_or_path=bible_val_pairs.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=1,
+                              batch_size=30,
                               val_evaluators=val_metrics,
                               share_other_objective_head=tokenbsc_wiki,
                               objective_id="Bible")

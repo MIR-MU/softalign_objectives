@@ -268,7 +268,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
-                      num_samples: int = 5,
+                      num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
         batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
