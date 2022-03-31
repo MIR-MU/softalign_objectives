@@ -23,7 +23,7 @@ tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None
-val_firstn = 100
+val_firstn = 80
 test_firstn = 1000
 
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)

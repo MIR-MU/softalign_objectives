@@ -30,7 +30,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
                  num_samples: int,
-                 top_k_sampling: Optional[int] = 3,
+                 top_k_sampling: Optional[int] = 10,
                  greedy: Optional[bool] = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = self.compatible_head_model.device
         seq = torch.empty(num_samples, 0, dtype=torch.int64).to(device)
@@ -65,9 +65,12 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     top_k_args = tokens_probs.argsort(-1, descending=True)[:, :, :top_k_sampling]
                     tokens_probs_topk = tokens_probs.gather(-1, top_k_args)
                     tokens_probs = tokens_probs_topk.softmax(-1)
-
-                next_token_distr = torch.distributions.Categorical(tokens_probs)
-                sampled_next_token_rank = next_token_distr.sample()
+                try:
+                    next_token_distr = torch.distributions.Categorical(tokens_probs)
+                    sampled_next_token_rank = next_token_distr.sample()
+                except RuntimeError as e:
+                    print("Runtime error on inputs %s" % inputs)
+                    raise e
                 if top_k_sampling is not None:
                     next_token_id = top_k_args[0, 0, sampled_next_token_rank]
                     next_token_prob = tokens_probs[0, 0, sampled_next_token_rank]
@@ -215,7 +218,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 embedded_token_chars = set(emb_tokens[best_alignment])
                 if own_token_chars and not own_token_chars.intersection(embedded_token_chars):
                     print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
-                          "token. Own tokens: %s, embedded tokens: %s" % (own_tokens, emb_tokens))
+                          "token. Own tokens: %s, embedded tokens: %s"
+                          % (own_tokens[own_pointer], emb_tokens[best_alignment]))
                 else:
                     own_indices.append(own_pointer)
                     embedder_indices.append(best_alignment)
