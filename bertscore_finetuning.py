@@ -10,6 +10,8 @@ from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset
 
+torch.autograd.set_detect_anomaly(True)
+
 data_dir = "examples/machine_translation"
 experiment_id = "mrt"
 
@@ -43,9 +45,9 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          max_steps=100000,
-                                         gradient_accumulation_steps=4,
-                                         logging_steps=50,
-                                         eval_steps=20,
+                                         gradient_accumulation_steps=5,
+                                         logging_steps=5,
+                                         eval_steps=10,
                                          save_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -66,7 +68,7 @@ tokenbsc_wiki = SeqBertScoreObjective(lang_module,
                                       val_labels_or_path=wiki_val_pairs.target,
                                       source_lang_id=src_lang,
                                       target_lang_id=tgt_lang,
-                                      batch_size=30,
+                                      batch_size=2,
                                       val_evaluators=val_metrics,
                                       objective_id="Opensub")
 seq_wiki = Sequence2Sequence(lang_module,

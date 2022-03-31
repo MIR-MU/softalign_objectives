@@ -132,7 +132,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
             tokens = [self._erase_bert_tokenizer_extras(subword, tokenizer)
                       for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
         else:
-            tokens = [subword for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
+            tokens = [subword for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
+                      if subword not in tokenizer.all_special_tokens]
 
         lengths = [len(token) for token in tokens]
         cum_lengths = [0, lengths[0]]
@@ -182,7 +183,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         """
         own_tokens, own_intervals = self._intervals_for_text_tokenizer(own_ids, self.tokenizer)
         emb_tokens, emb_intervals = self._intervals_for_text_tokenizer(embedder_ids, self.scorer.scorer._tokenizer)
-        # TODO: still contains special tokens
+
         own_pointer = 0
         emb_pointer = start_pos
 
@@ -312,8 +313,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                                                                   hyp_own_ids,
                                                                                   hyp_embeder_ids,
                                                                                   hyp_embeddings)
-                # once functional, add other covariates - weighting by confidence / by overall hyp_score
-                # TODO 1: Multiply by the corresponding per-token probabilities, to construct the DCG to Marian model
+                # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
+                # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                 losses.append(distances * hyp_token_scores[own_indices])
 
         if not losses:
