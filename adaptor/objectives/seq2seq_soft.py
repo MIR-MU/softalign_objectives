@@ -180,7 +180,7 @@ class MinimumRiskTraining(Sequence2Sequence):
 
 
 # TODO: remove
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 
 class TokenBertScoreObjective(MinimumRiskTraining):
@@ -263,6 +263,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
 
                 # return seq, torch.hstack(agg_probs), torch.hstack(top_n_best_candidates), torch.hstack(top_n_probs)
                 # TODO: refactor
+                # TODO: deduplicate
                 return seq, torch.hstack(agg_probs), torch.stack(top_n_best_candidates, dim=-1).squeeze(1), \
                        torch.stack(top_n_probs, dim=-1).squeeze(1)
 
@@ -310,10 +311,10 @@ class TokenBertScoreObjective(MinimumRiskTraining):
             if min_len == 0:
                 # spaces are tokenized to a zero length => for these cases, we want to get the overlaying subword emb.
                 if offsets1[0] <= offsets2[0] <= offsets2[1] <= offsets1[1]:
-                    # offsets1 overlays offsets2 -> returning nonzero allows to identify current position
+                    # x overlays y -> returning nonzero allows to identify current position
                     return 1
                 elif offsets2[0] <= offsets1[0] <= offsets1[1] <= offsets2[1]:
-                    # offsets2 overlays offsets1
+                    # y overlays x
                     return 1
                 # no overlay
                 return 0
@@ -338,32 +339,30 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         # search both (sorted) offset lists around the requested hyp_pos, find candidates and pick the best-intersector
         searched_offset = own_offsets[hyp_pos - 1], own_offsets[hyp_pos]
         best_match_intersection = 0
-        if hyp_pos == 19:
-            pass
         last_match = hyp_pos
         for embedder_offset_dist in range(len(embedder_offsets)):
             new_fwd_idx = hyp_pos + embedder_offset_dist
             try:
                 fwd_offset = embedder_offsets[new_fwd_idx - 1], embedder_offsets[new_fwd_idx]
+                fwd_intersection = _offsets_intersection(searched_offset, fwd_offset)
                 fwd_idx = new_fwd_idx
             except IndexError:
                 # lookup reached end of sequence -> we will skip it
-                pass
-            fwd_intersection = _offsets_intersection(searched_offset, fwd_offset)
+                fwd_intersection = 0
 
             new_bwd_idx = hyp_pos - embedder_offset_dist
             try:
                 bwd_offset = embedder_offsets[new_bwd_idx - 1], embedder_offsets[new_bwd_idx]
+                bwd_intersection = _offsets_intersection(searched_offset, bwd_offset)
                 bwd_idx = new_bwd_idx
             except IndexError:
                 # lookup reached beginning of sequence -> we will skip it
-                pass
-            bwd_intersection = _offsets_intersection(searched_offset, bwd_offset)
+                bwd_intersection = 0
 
             # no better match can follow after any intersection has been already found
             if max(fwd_intersection, bwd_intersection) < best_match_intersection:
                 # we could do some automatic assert like:
-                # self.tokenizer.decode(hyp_ids[2]), self.scorer.scorer._tokenizer.decode(embedder_ids[3])
+                # self.tokenizer.decode(tokenizer_ids[2]), self.scorer.scorer._tokenizer.decode(embedder_ids[3])
                 embedded_segment = [self._erase_bert_tokenizer_extras(s)
                                     for s in self.scorer.scorer._tokenizer.batch_decode(embedder_ids)][last_match]
                 if embedded_segment in self.scorer.scorer._tokenizer.all_special_tokens:
@@ -376,9 +375,13 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                         and generated_segment not in self.tokenizer.all_special_tokens:
                     # assert there is some intersection for all nonempty segments
                     # TODO: check an impact of embedding empty segments by the closest embeddings
-                    assert set(embedded_segment).intersection(generated_segment), \
-                        "embedded: %s, \ngenerated: %s, position: %s" % (embedded_segment, generated_segment, hyp_pos)
-                    return last_match
+                    try:
+                        assert set(embedded_segment).intersection(generated_segment), \
+                            "embedded: %s, \ngenerated: %s, position: %s" % (embedded_segment, generated_segment, hyp_pos)
+                        return last_match
+                    except AssertionError as e:
+                        print(e)
+                        return -100
                 else:
                     # ignore loss for the tokens where we can not assert a match
                     return -100
@@ -412,7 +415,7 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         embeddings_dists = torch.cdist(matched_embeddings, ref_embedding)
         embeddings_best_dists = embeddings_dists.min(-1).values.clone()
         # do not used ignored indices in normalization
-        print("ignored_pos: %s" % matched_embeddings_pos)
+        print("ignored_pos: %s" % (matched_embeddings_pos - predicted_pos))
         embeddings_best_dists[ignored_pos] = embeddings_best_dists.median()
 
         embeddings_dists_scaled = (embeddings_best_dists - embeddings_best_dists.min()) / \
@@ -503,8 +506,11 @@ class TokenBertScoreObjective(MinimumRiskTraining):
                 loss_weighted = hyp_loss * hyps_quality.to(self.device)
 
                 losses.append(loss_weighted)
-
-        return torch.hstack(losses).mean()
+        if not losses:
+            print("Warning: empty set of valid hypotheses to compute loss on.")
+            return torch.tensor(0., dtype=torch.float, requires_grad=True)
+        else:
+            return torch.hstack(losses).mean()
 
 
 class MinimumFlow(Sequence2Sequence):

@@ -4,8 +4,8 @@ import torch
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
+from adaptor.objectives.bertscr_objectives import SeqBertScoreObjective
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.seq2seq_soft import TokenBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset
@@ -45,7 +45,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          max_steps=100000,
                                          # gradient_accumulation_steps=10,
                                          logging_steps=50,
-                                         eval_steps=1,
+                                         eval_steps=20,
                                          save_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -59,16 +59,16 @@ metrics_args = {"additional_sep_char": "▁"}
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-tokenbsc_wiki = TokenBertScoreObjective(lang_module,
-                                        texts_or_path=wiki_pairs.source,
-                                        labels_or_path=wiki_pairs.target,
-                                        val_texts_or_path=wiki_val_pairs.source,
-                                        val_labels_or_path=wiki_val_pairs.target,
-                                        source_lang_id=src_lang,
-                                        target_lang_id=tgt_lang,
-                                        batch_size=1,
-                                        val_evaluators=val_metrics,
-                                        objective_id="Opensub")
+tokenbsc_wiki = SeqBertScoreObjective(lang_module,
+                                      texts_or_path=wiki_pairs.source,
+                                      labels_or_path=wiki_pairs.target,
+                                      val_texts_or_path=wiki_val_pairs.source,
+                                      val_labels_or_path=wiki_val_pairs.target,
+                                      source_lang_id=src_lang,
+                                      target_lang_id=tgt_lang,
+                                      batch_size=1,
+                                      val_evaluators=val_metrics,
+                                      objective_id="Opensub")
 seq_wiki = Sequence2Sequence(lang_module,
                              texts_or_path=wiki_pairs.source,
                              labels_or_path=wiki_pairs.target,

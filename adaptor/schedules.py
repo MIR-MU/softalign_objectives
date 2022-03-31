@@ -242,7 +242,7 @@ class Schedule(abc.ABC):
         length_combined = int(sum((o.dataset_length[split] // o.batch_size) for o in self.objectives[split].values()))
         if split == "train":
             length_combined *= self.args.num_train_epochs
-
+            # TODO for adaptor: properly report length
         return TransformerAdaptationDataset(self._combine_datasets(split), length_combined)
 
 
