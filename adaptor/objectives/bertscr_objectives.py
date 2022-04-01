@@ -332,7 +332,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         #     return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
         # else:
         #     return torch.hstack(losses).mean()
-        return torch.nn.L1Loss()(torch.hstack(batch_distances), torch.hstack(batch_scores))
+        return torch.nn.L1Loss()(torch.hstack(batch_distances), 1 - torch.hstack(batch_scores))
 
 class MinimumFlow(Sequence2Sequence):
     bertscore_model = "bert-base-multilingual-cased"
