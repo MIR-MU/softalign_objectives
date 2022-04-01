@@ -69,7 +69,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     next_token_distr = torch.distributions.Categorical(tokens_probs)
                     sampled_next_token_rank = next_token_distr.sample()
                 except RuntimeError as e:
-                    print("Runtime error on inputs %s" % inputs)
+                    # print("Runtime error on inputs %s" % inputs)
+                    print("Runtime error on inputs - OOM error?")
                     raise e
                 if top_k_sampling is not None:
                     next_token_id = top_k_args[0, 0, sampled_next_token_rank]
@@ -139,7 +140,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       if subword not in tokenizer.all_special_tokens]
 
         lengths = [len(token) for token in tokens]
-        cum_lengths = [0, lengths[0]]
+        cum_lengths = [0, lengths[0]]  # TODO: IndexError: list index out of range (cpu experiment)
         for ith_length in lengths[1:]:
             cum_lengths.append(cum_lengths[-1] + ith_length)
 
@@ -278,7 +279,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
-        losses = []
+        # losses = []
+        batch_distances = []
+        batch_scores = []
 
         for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(batch["labels"],
                                                                           self.do_sample(input_batch, num_samples)):
@@ -319,15 +322,17 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                                                                   hyp_embeddings)
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                losses.append(distances * hyp_token_scores[own_indices])
+                # losses.append(distances * hyp_token_scores[own_indices])
+                batch_distances.append(distances)
+                batch_scores.append(hyp_token_scores[own_indices])
 
-        if not losses:
-            print("Warning: empty set of valid hypotheses to compute loss on.")
-            # return torch.tensor(0., dtype=torch.float, requires_grad=True)
-            return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
-        else:
-            return torch.hstack(losses).mean()
-
+        # if not losses:
+        #     print("Warning: empty set of valid hypotheses to compute loss on.")
+        #     # return torch.tensor(0., dtype=torch.float, requires_grad=True)
+        #     return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
+        # else:
+        #     return torch.hstack(losses).mean()
+        return torch.nn.L1Loss()(torch.hstack(batch_distances), torch.hstack(batch_scores))
 
 class MinimumFlow(Sequence2Sequence):
     bertscore_model = "bert-base-multilingual-cased"
