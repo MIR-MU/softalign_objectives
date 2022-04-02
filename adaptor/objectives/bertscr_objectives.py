@@ -128,6 +128,15 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
 
 class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.distances_pads = {i: torch.zeros(self.tokenizer.model_max_length - i,
+                                              requires_grad=True, device=self.device)
+                               for i in range(self.tokenizer.model_max_length)}
+        self.scores_pads = {i: torch.ones(self.tokenizer.model_max_length - i,
+                                          requires_grad=True, device=self.device)
+                            for i in range(self.tokenizer.model_max_length)}
+
     def _erase_bert_tokenizer_extras(self,
                                      text: str,
                                      tokenizer: PreTrainedTokenizer,
@@ -336,14 +345,12 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                 # losses.append(distances * hyp_token_scores[own_indices])
-                distances_pad = torch.zeros(self.tokenizer.model_max_length - distances.shape[0],
-                                            requires_grad=True, device=self.device)
-                distances_padded = torch.hstack([distances, distances_pad])
+
+                distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
                 scores = hyp_token_scores[own_indices]
-                scores_pad = torch.ones(self.tokenizer.model_max_length - scores.shape[0],
-                                        requires_grad=True, device=self.device)
-                scores_padded = torch.hstack([scores, scores_pad])
+                scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
+
                 batch_distances.append(distances_padded)
                 batch_scores.append(scores_padded)
 
