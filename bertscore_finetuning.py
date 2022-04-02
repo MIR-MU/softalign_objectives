@@ -1,5 +1,6 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
+import gc
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
@@ -11,6 +12,7 @@ from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset
 
 torch.autograd.set_detect_anomaly(True)
+gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
 experiment_id = "mrt"

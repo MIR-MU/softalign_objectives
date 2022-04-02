@@ -87,7 +87,9 @@ class Adapter(Trainer):
     @staticmethod
     def _objects_log() -> None:
         import gc
+        gc.collect(generation=0)
         objects_counter = dict()
+        torch_objs = []
         for obj in gc.get_objects():
             try:
                 if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
@@ -95,6 +97,7 @@ class Adapter(Trainer):
                         objects_counter[str(obj.size())] += 1
                     else:
                         objects_counter[str(obj.size())] = 1
+                    torch_objs.append(obj)
             except:
                 pass
         logger.warning("Number of torch tensors: \n%s" % objects_counter)
