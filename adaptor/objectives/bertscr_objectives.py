@@ -137,6 +137,23 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                           requires_grad=True, device=self.device)
                             for i in range(self.tokenizer.model_max_length)}
 
+        self.distances_memory = []
+        self.scores_memory = []
+
+    def _get_inputs_iterator(self, split: str) -> Iterator:
+        if split == "train":
+            for sample in super()._get_inputs_iterator(split):
+                # this objective needs to remember its inputs, to be able to conditionally generate
+                self.samples_queue.append(sample)
+                # if self.our_single_sample is None:
+                #     self.our_single_sample = sample
+                yield sample
+                # else:
+                #     yield self.our_single_sample
+        else:
+            self._truncate()
+            return super()._get_inputs_iterator(split)
+
     def _erase_bert_tokenizer_extras(self,
                                      text: str,
                                      tokenizer: PreTrainedTokenizer,
@@ -296,7 +313,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        torch.cuda.empty_cache()
+        print("Samples queue size: %s" % len(self.samples_queue))
 
         batch = {k: v.to(self.device) for k, v in self._get_next_sample().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
@@ -344,11 +361,14 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                                                                   hyp_embeddings)
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                losses.append(distances * hyp_token_scores[own_indices])
+                # losses.append(distances * hyp_token_scores[own_indices])
+
+                self.distances_memory.append(distances)
+                scores = hyp_token_scores[own_indices]
+                self.scores_memory.append(scores)
 
                 distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
-                scores = hyp_token_scores[own_indices]
                 scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
                 # batch_distances.append(distances_padded)
@@ -364,6 +384,12 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         #     return torch.hstack(losses).mean()
 
         return torch.hstack(losses).mean()
+
+    def _truncate(self):
+        for dist in self.distances_memory:
+            del dist
+        for score in self.scores_memory:
+            del score
 
 
 class MinimumFlow(Sequence2Sequence):
