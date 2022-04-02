@@ -90,16 +90,17 @@ class Adapter(Trainer):
         logger.warning("GPU usage log:")
         logger.warning("Allocated memory: %s" % torch.cuda.memory_allocated(0))
         import gc
-        num_objects = 0
+        objects_counter = dict()
         for obj in gc.get_objects():
             try:
                 if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                    num_objects += 1
-                    if any(dim_size > 2048 for dim_size in obj.size()):
-                        print(type(obj), obj.size())
+                    if str(obj.size()) in objects_counter:
+                        objects_counter[str(obj.size())] += 1
+                    else:
+                        objects_counter[str(obj.size())] = 1
             except:
                 pass
-        logger.warning("Number of torch objects: %s" % num_objects)
+        logger.warning("Number of torch tensors: \n%s" % objects_counter)
         logger.warning("End GPU usage log.")
 
         out = super(Adapter, self).evaluate(*args, **kwargs)
