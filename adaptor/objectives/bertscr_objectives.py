@@ -26,11 +26,12 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     def _get_inputs_iterator(self, split: str) -> Iterator:
         for sample in super()._get_inputs_iterator(split):
             # this objective needs to remember its inputs, to be able to conditionally generate
-            self.samples_queue.append(sample)
-            yield sample
-
+            # self.samples_queue.append(sample)
             if self.our_single_sample is None:
+                yield sample
                 self.our_single_sample = sample
+            else:
+                yield self.our_single_sample
 
     def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
         # return self.samples_queue.pop()
