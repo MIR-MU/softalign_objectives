@@ -84,11 +84,8 @@ class Adapter(Trainer):
         extended_logs = self.schedule.objectives_log(split="eval" if is_eval_log else "train")
         return super().log({**logs, **extended_logs})
 
-    def evaluate(self, *args, **kwargs) -> Dict[str, float]:
-        logger.warning("Evaluating...")
-
-        logger.warning("GPU usage log:")
-        logger.warning("Allocated memory: %s" % torch.cuda.memory_allocated(0))
+    @staticmethod
+    def _objects_log() -> None:
         import gc
         objects_counter = dict()
         for obj in gc.get_objects():
@@ -101,7 +98,16 @@ class Adapter(Trainer):
             except:
                 pass
         logger.warning("Number of torch tensors: \n%s" % objects_counter)
-        logger.warning("End GPU usage log.")
+
+    def evaluate(self, *args, **kwargs) -> Dict[str, float]:
+        logger.warning("Evaluating...")
+
+        logger.warning("GPU usage log:")
+        self._objects_log()
+        logger.warning("Allocated memory: %s" % torch.cuda.memory_allocated(0))
+        logger.warning("Cache cleanup.")
+        torch.cuda.empty_cache()
+        logger.warning("Allocated memory after cleanup: %s" % torch.cuda.memory_allocated(0))
 
         out = super(Adapter, self).evaluate(*args, **kwargs)
         if "metric_key_prefix" in kwargs:
@@ -110,7 +116,6 @@ class Adapter(Trainer):
         # refresh exhausted evaluation iteration for possible next evaluation
         self.eval_dataset = self.schedule.iterable_dataset("eval")
 
-        logger.warning("Allocated memory after Eval: %s" % torch.cuda.memory_allocated(0))
         return out
 
     def save_model(self, output_dir: Optional[str] = None) -> None:

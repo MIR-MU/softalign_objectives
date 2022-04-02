@@ -301,9 +301,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         batch = {k: v.to(self.device) for k, v in self._get_next_sample().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
-        # losses = []
-        batch_distances = []
-        batch_scores = []
+        losses = []
+        # batch_distances = []
+        # batch_scores = []
 
         for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(batch["labels"],
                                                                           self.do_sample(input_batch, num_samples)):
@@ -344,15 +344,17 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                                                                   hyp_embeddings)
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                # losses.append(distances * hyp_token_scores[own_indices])
+                losses.append(distances * hyp_token_scores[own_indices])
 
                 distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
                 scores = hyp_token_scores[own_indices]
                 scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
-                batch_distances.append(distances_padded)
-                batch_scores.append(scores_padded)
+                # batch_distances.append(distances_padded)
+                # batch_scores.append(scores_padded)
+
+                losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
 
         # if not losses:
         #     print("Warning: empty set of valid hypotheses to compute loss on.")
@@ -360,7 +362,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         #     return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
         # else:
         #     return torch.hstack(losses).mean()
-        return torch.nn.L1Loss()(torch.hstack(batch_distances), 1 - torch.hstack(batch_scores))
+
+        return torch.hstack(losses).mean()
 
 
 class MinimumFlow(Sequence2Sequence):
