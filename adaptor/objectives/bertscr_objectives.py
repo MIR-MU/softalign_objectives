@@ -26,16 +26,16 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     def _get_inputs_iterator(self, split: str) -> Iterator:
         for sample in super()._get_inputs_iterator(split):
             # this objective needs to remember its inputs, to be able to conditionally generate
-            # self.samples_queue.append(sample)
-            if self.our_single_sample is None:
-                self.our_single_sample = sample
-                yield sample
-            else:
-                yield self.our_single_sample
+            self.samples_queue.append(sample)
+            # if self.our_single_sample is None:
+            #     self.our_single_sample = sample
+            yield sample
+            # else:
+            #     yield self.our_single_sample
 
     def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
-        # return self.samples_queue.pop()
-        return self.our_single_sample.items()
+        return self.samples_queue.pop()
+        # return self.our_single_sample
 
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
@@ -289,7 +289,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       ignored_label: int = -100) -> torch.FloatTensor:
         torch.cuda.empty_cache()
 
-        batch = {k: v.to(self.device) for k, v in self._get_next_sample()}
+        batch = {k: v.to(self.device) for k, v in self._get_next_sample().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         # losses = []
@@ -336,8 +336,14 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                 # losses.append(distances * hyp_token_scores[own_indices])
-                batch_distances.append(distances)
-                batch_scores.append(hyp_token_scores[own_indices])
+                distances_pad = torch.zeros(self.tokenizer.model_max_length - distances.shape[0], requires_grad=True)
+                distances_padded = torch.hstack([distances, distances_pad])
+
+                scores = hyp_token_scores[own_indices]
+                scores_pad = torch.ones(self.tokenizer.model_max_length - scores.shape[0], requires_grad=True)
+                scores_padded = torch.hstack([scores, scores_pad])
+                batch_distances.append(distances_padded)
+                batch_scores.append(scores_padded)
 
         # if not losses:
         #     print("Warning: empty set of valid hypotheses to compute loss on.")
