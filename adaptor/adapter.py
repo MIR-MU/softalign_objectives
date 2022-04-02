@@ -86,6 +86,18 @@ class Adapter(Trainer):
 
     def evaluate(self, *args, **kwargs) -> Dict[str, float]:
         logger.warning("Evaluating...")
+
+        logger.warning("GPU usage log:")
+        logger.warning("Allocated memory: %s" % torch.cuda.memory_allocated(0))
+        import gc
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                    print(type(obj), obj.size())
+            except:
+                pass
+        logger.warning("End GPU usage log:")
+
         out = super(Adapter, self).evaluate(*args, **kwargs)
         if "metric_key_prefix" in kwargs:
             self.eval_metrics_prefix = kwargs["metric_key_prefix"]
@@ -93,6 +105,7 @@ class Adapter(Trainer):
         # refresh exhausted evaluation iteration for possible next evaluation
         self.eval_dataset = self.schedule.iterable_dataset("eval")
 
+        logger.warning("Allocated memory after Eval: %s" % torch.cuda.memory_allocated(0))
         return out
 
     def save_model(self, output_dir: Optional[str] = None) -> None:

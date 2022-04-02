@@ -218,9 +218,10 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 own_token_chars = set(own_tokens[own_pointer])
                 embedded_token_chars = set(emb_tokens[best_alignment])
                 if own_token_chars and not own_token_chars.intersection(embedded_token_chars):
-                    print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
-                          "token. Own tokens: %s, embedded tokens: %s"
-                          % (own_tokens[own_pointer], emb_tokens[best_alignment]))
+                    # print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
+                    #       "token. Own tokens: %s, embedded tokens: %s"
+                    #       % (own_tokens[own_pointer], emb_tokens[best_alignment]))
+                    pass
                 else:
                     own_indices.append(own_pointer)
                     embedder_indices.append(best_alignment)
@@ -276,6 +277,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
+        torch.cuda.empty_cache()
+
         batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
@@ -333,6 +336,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         # else:
         #     return torch.hstack(losses).mean()
         return torch.nn.L1Loss()(torch.hstack(batch_distances), 1 - torch.hstack(batch_scores))
+
 
 class MinimumFlow(Sequence2Sequence):
     bertscore_model = "bert-base-multilingual-cased"
