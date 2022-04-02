@@ -336,11 +336,13 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                 # losses.append(distances * hyp_token_scores[own_indices])
-                distances_pad = torch.zeros(self.tokenizer.model_max_length - distances.shape[0], requires_grad=True)
+                distances_pad = torch.zeros(self.tokenizer.model_max_length - distances.shape[0],
+                                            requires_grad=True, device=self.device)
                 distances_padded = torch.hstack([distances, distances_pad])
 
                 scores = hyp_token_scores[own_indices]
-                scores_pad = torch.ones(self.tokenizer.model_max_length - scores.shape[0], requires_grad=True)
+                scores_pad = torch.ones(self.tokenizer.model_max_length - scores.shape[0],
+                                        requires_grad=True, device=self.device)
                 scores_padded = torch.hstack([scores, scores_pad])
                 batch_distances.append(distances_padded)
                 batch_scores.append(scores_padded)
