@@ -34,7 +34,9 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
             #     yield self.our_single_sample
 
     def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
-        return self.samples_queue.pop()
+        sample = self.samples_queue.pop()
+        self.samples_queue = []
+        return sample
         # return self.our_single_sample
 
     def sample_n(self,
