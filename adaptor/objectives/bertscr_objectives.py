@@ -19,6 +19,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.scorer = BERTScore()
 
+        self.our_single_sample = None
+
         self.samples_queue = []
 
     def _get_inputs_iterator(self, split: str) -> Iterator:
@@ -26,6 +28,13 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
             # this objective needs to remember its inputs, to be able to conditionally generate
             self.samples_queue.append(sample)
             yield sample
+
+            if self.our_single_sample is None:
+                self.our_single_sample = sample
+
+    def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
+        # return self.samples_queue.pop()
+        return self.our_single_sample
 
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
@@ -279,7 +288,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       ignored_label: int = -100) -> torch.FloatTensor:
         torch.cuda.empty_cache()
 
-        batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
+        batch = {k: v.to(self.device) for k, v in self._get_next_sample()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         # losses = []
