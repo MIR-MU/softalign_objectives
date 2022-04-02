@@ -35,12 +35,12 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
 
     def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
         # return self.samples_queue.pop()
-        return self.our_single_sample
+        return self.our_single_sample.items()
 
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
                  num_samples: int,
-                 top_k_sampling: Optional[int] = 10,
+                 top_k_sampling: Optional[int] = 3,
                  greedy: Optional[bool] = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = self.compatible_head_model.device
         seq = torch.empty(num_samples, 0, dtype=torch.int64).to(device)
