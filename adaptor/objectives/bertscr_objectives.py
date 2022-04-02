@@ -28,8 +28,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
             # this objective needs to remember its inputs, to be able to conditionally generate
             # self.samples_queue.append(sample)
             if self.our_single_sample is None:
-                yield sample
                 self.our_single_sample = sample
+                yield sample
             else:
                 yield self.our_single_sample
 
