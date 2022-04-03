@@ -85,21 +85,30 @@ class Adapter(Trainer):
         return super().log({**logs, **extended_logs})
 
     @staticmethod
-    def _objects_log() -> None:
-        objects_counter = dict()
-        torch_objs = []
+    def _count_objects() -> Dict[str, int]:
         import gc
+        objects_counter = dict()
         for obj in gc.get_objects():
             try:
-                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)) and len(obj.size()) > 1:
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
                     if str(obj.size()) in objects_counter:
                         objects_counter[str(obj.size())] += 1
                     else:
                         objects_counter[str(obj.size())] = 1
-                    torch_objs.append(obj)
             except:
                 pass
-        logger.warning("Number of torch tensors: \n%s" % objects_counter)
+        return objects_counter
+
+    @staticmethod
+    def _count_objects_diff(smaller_count, bigger_count) -> Dict[str, int]:
+        counts = {k: v - smaller_count[k] if k in smaller_count else v for k, v in bigger_count.items()}
+        return {k: v for k, v in counts.items() if v != 0}
+
+    @staticmethod
+    def _objects_log() -> None:
+        objects_counter = Adapter._count_objects()
+
+        logger.warning("Number of torch tensors: \n%s" % sum(objects_counter.values()))
 
     def evaluate(self, *args, **kwargs) -> Dict[str, float]:
         logger.warning("Evaluating...")

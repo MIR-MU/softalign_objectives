@@ -136,16 +136,29 @@ class Objective(abc.ABC):
         mean_loss = sum(loss_history) / len(loss_history) if len(loss_history) else 0
         self.evaluations_history[split]["loss"].append(mean_loss)
 
+        from adaptor.adapter import Adapter
+        init_counts = Adapter._count_objects()
+        # print("GPU: objects initially: %s" % init_counts)
+
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
         for evaluator in self.evaluators[split]:
+            new_counts = Adapter._count_objects()
+            print("GPU: objects change starting evaluation: %s" % Adapter._count_objects_diff(init_counts, new_counts))
             dataset = self.get_dataset(split, 0, self.compatible_head_model.device,
                                        firstn=self.max_samples_per_log[split],
                                        add_oid=False,
                                        is_training_dataset=False)
+            new_counts = Adapter._count_objects()
+            print("GPU: objects change after dataset: %s" % Adapter._count_objects_diff(init_counts, new_counts))
 
             # evaluator should already return an aggregated value, so unlike loss, we don't average it
             evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
+
+            new_counts = Adapter._count_objects()
+            print("GPU: objects change after evaluation of %s: %s"
+                  % (evaluator, Adapter._count_objects_diff(init_counts, new_counts)))
+
             self.evaluations_history[split][evaluator].append(evaluator_value)
             out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
 
