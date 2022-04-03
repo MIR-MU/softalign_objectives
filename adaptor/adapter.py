@@ -85,16 +85,18 @@ class Adapter(Trainer):
         return super().log({**logs, **extended_logs})
 
     @staticmethod
-    def _count_objects() -> Dict[str, int]:
+    def _count_objects() -> Dict[Tuple[int], int]:
         import gc
         objects_counter = dict()
         for obj in gc.get_objects():
             try:
                 if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                    if str(obj.size()) in objects_counter:
-                        objects_counter[str(obj.size())] += 1
+                    k = tuple(obj.size())
+
+                    if k in objects_counter:
+                        objects_counter[k] += 1
                     else:
-                        objects_counter[str(obj.size())] = 1
+                        objects_counter[k] = 1
             except:
                 pass
         return objects_counter
