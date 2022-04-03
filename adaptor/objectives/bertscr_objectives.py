@@ -3,6 +3,7 @@ from typing import Tuple, Iterator, Union, Dict, Optional, List
 
 import torch
 import torch.nn.functional as F
+from adaptor.adapter import Adapter
 from torch import Tensor
 from transformers import BatchEncoding, PreTrainedTokenizer, BertTokenizer
 
@@ -313,7 +314,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        # print("Samples queue size: %s" % len(self.samples_queue))
+        print("GPU usage log: ")
+        Adapter._objects_log()
 
         assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
