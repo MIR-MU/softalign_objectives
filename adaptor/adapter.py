@@ -91,7 +91,7 @@ class Adapter(Trainer):
         import gc
         for obj in gc.get_objects():
             try:
-                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)) and len(obj.size > 1):
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)) and len(obj.size()) > 1:
                     if str(obj.size()) in objects_counter:
                         objects_counter[str(obj.size())] += 1
                     else:
