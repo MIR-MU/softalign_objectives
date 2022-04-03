@@ -142,6 +142,11 @@ class Objective(abc.ABC):
         init_counts = Adapter._count_objects()
         # print("GPU: objects initially: %s" % init_counts)
 
+        # manual garbage collection of the previous, unallocated inputs
+        for obj in gc.get_objects():
+            if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == 1 and obj.size()[1] <= 512:
+                del obj
+
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
         if torch.cuda.is_available():
@@ -179,6 +184,11 @@ class Objective(abc.ABC):
             len(final_counts) - out_logs["%s_%s_num_torch_objects" % (split, self)]
         out_logs["%s_%s_new_eval_torch_objects_size" % (split, self)] = \
             sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
+
+        # manual garbage collection of the previous, unallocated inputs
+        for obj in gc.get_objects():
+            if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == 1 and obj.size()[1] <= 512:
+                del obj
 
         return out_logs
 
