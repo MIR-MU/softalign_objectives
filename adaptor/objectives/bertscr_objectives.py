@@ -32,12 +32,12 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     #         yield sample
     #         # else:
     #         #     yield self.our_single_sample
-
-    def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
-        sample = self.samples_queue.pop()
-        self.samples_queue = []
-        return sample
-        # return self.our_single_sample
+    #
+    # def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
+    #     sample = self.samples_queue.pop()
+    #     self.samples_queue = []
+    #     return sample
+    #     # return self.our_single_sample
 
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
@@ -313,7 +313,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        print("Samples queue size: %s" % len(self.samples_queue))
+        # print("Samples queue size: %s" % len(self.samples_queue))
 
         assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
