@@ -21,17 +21,17 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
 
         self.our_single_sample = None
 
-        self.samples_queue = []
+        self.recent_sample = None
 
-    def _get_inputs_iterator(self, split: str) -> Iterator:
-        for sample in super()._get_inputs_iterator(split):
-            # this objective needs to remember its inputs, to be able to conditionally generate
-            self.samples_queue.append(sample)
-            # if self.our_single_sample is None:
-            #     self.our_single_sample = sample
-            yield sample
-            # else:
-            #     yield self.our_single_sample
+    # def _get_inputs_iterator(self, split: str) -> Iterator:
+    #     for sample in super()._get_inputs_iterator(split):
+    #         # this objective needs to remember its inputs, to be able to conditionally generate
+    #         self.samples_queue.append(sample)
+    #         # if self.our_single_sample is None:
+    #         #     self.our_single_sample = sample
+    #         yield sample
+    #         # else:
+    #         #     yield self.our_single_sample
 
     def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
         sample = self.samples_queue.pop()
@@ -146,14 +146,13 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         if split == "train":
             for sample in super()._get_inputs_iterator(split):
                 # this objective needs to remember its inputs, to be able to conditionally generate
-                self.samples_queue.append(sample)
+                self.recent_sample = sample
                 # if self.our_single_sample is None:
                 #     self.our_single_sample = sample
                 yield sample
                 # else:
                 #     yield self.our_single_sample
         else:
-            self._truncate()
             return super()._get_inputs_iterator(split)
 
     def _erase_bert_tokenizer_extras(self,
@@ -279,7 +278,6 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         Retrieves embeddings located on the corresponding coordinates.
         This might be more complex when processing in batches
         """
-        # TODO: impact of the gathering device?
         return embeddings[coordinates]
 
     def _distances_for_hyp_ids(self,
@@ -317,7 +315,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       ignored_label: int = -100) -> torch.FloatTensor:
         print("Samples queue size: %s" % len(self.samples_queue))
 
-        batch = {k: v.to(self.device) for k, v in self._get_next_sample().items()}
+        assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
+
+        batch = {k: v.to(self.device) for k, v in self.recent_sample.items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
@@ -365,9 +365,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                 # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                 # losses.append(distances * hyp_token_scores[own_indices])
 
-                self.distances_memory.append(distances)
                 scores = hyp_token_scores[own_indices]
-                self.scores_memory.append(scores)
 
                 distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
@@ -385,13 +383,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         # else:
         #     return torch.hstack(losses).mean()
 
-        return torch.hstack(losses).mean()
+        self.recent_sample = None
 
-    def _truncate(self):
-        for dist in self.distances_memory:
-            del dist
-        for score in self.scores_memory:
-            del score
+        return torch.hstack(losses).mean()
 
 
 class MinimumFlow(Sequence2Sequence):
