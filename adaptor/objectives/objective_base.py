@@ -144,8 +144,11 @@ class Objective(abc.ABC):
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
+        out_logs["%s_%s_torch_cuda_allocated" % (split, self)] = torch.cuda.memory_allocated()
+        out_logs["%s_%s_torch_cuda_info" % (split, self)] = torch.cuda.mem_get_info()
         out_logs["%s_%s_num_torch_objects" % (split, self)] = len(init_counts)
-        out_logs["%s_%s_torch_objects_size" % (split, self)] = sum(np.prod(shape) for shape in init_counts.keys())
+
+        out_logs["%s_%s_torch_objects_size" % (split, self)] = sum(float(np.prod(list(shape))) for shape in init_counts.keys())
 
         for evaluator in self.evaluators[split]:
             new_counts = Adapter._count_objects()
