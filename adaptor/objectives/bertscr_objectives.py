@@ -308,8 +308,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        # print("GPU usage log: ")
-        # Adapter._objects_log()
+        init_counts = Adapter._count_objects()
 
         assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
@@ -380,6 +379,10 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         #     return torch.hstack(losses).mean()
 
         self.recent_sample = None
+
+        final_counts = Adapter._count_objects()
+        print("GPU: change of torch objects on one forward(): %s"
+              % Adapter._count_objects_diff(init_counts, final_counts))
 
         return torch.hstack(losses).mean()
 

@@ -1,4 +1,5 @@
 import abc
+import gc
 import itertools
 import logging
 from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence, Any
@@ -145,6 +146,8 @@ class Objective(abc.ABC):
         for evaluator in self.evaluators[split]:
             new_counts = Adapter._count_objects()
             print("GPU: objects change starting evaluation: %s" % Adapter._count_objects_diff(init_counts, new_counts))
+            init_counts = new_counts
+
             dataset = self.get_dataset(split, 0, self.compatible_head_model.device,
                                        firstn=self.max_samples_per_log[split],
                                        add_oid=False,
@@ -153,7 +156,11 @@ class Objective(abc.ABC):
             print("GPU: objects change after dataset: %s" % Adapter._count_objects_diff(init_counts, new_counts))
 
             # evaluator should already return an aggregated value, so unlike loss, we don't average it
-            evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
+            with torch.no_grad():
+                evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
+                import gc
+                gc.collect(0)
+                gc.collect(2)
 
             new_counts = Adapter._count_objects()
             print("GPU: objects change after evaluation of %s: %s"
