@@ -4,6 +4,7 @@ import itertools
 import logging
 from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence, Any
 
+import numpy as np
 import torch
 from tqdm import trange
 from transformers import BatchEncoding
@@ -143,6 +144,9 @@ class Objective(abc.ABC):
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
+        out_logs["%s_%s_num_torch_objects" % (split, self)] = len(init_counts)
+        out_logs["%s_%s_torch_objects_size" % (split, self)] = sum(np.prod(shape) for shape in init_counts.keys())
+
         for evaluator in self.evaluators[split]:
             new_counts = Adapter._count_objects()
             print("GPU: objects change starting evaluation: %s" % Adapter._count_objects_diff(init_counts, new_counts))
@@ -156,18 +160,21 @@ class Objective(abc.ABC):
             print("GPU: objects change after dataset: %s" % Adapter._count_objects_diff(init_counts, new_counts))
 
             # evaluator should already return an aggregated value, so unlike loss, we don't average it
-            with torch.no_grad():
-                evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
-                import gc
-                gc.collect(0)
-                gc.collect(2)
+            evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
 
             new_counts = Adapter._count_objects()
             print("GPU: objects change after evaluation of %s: %s"
                   % (evaluator, Adapter._count_objects_diff(init_counts, new_counts)))
 
-            self.evaluations_history[split][evaluator].append(evaluator_value)
+            # self.evaluations_history[split][evaluator].append(evaluator_value)
             out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+
+        final_counts = Adapter._count_objects()
+
+        out_logs["%s_%s_new_eval_num_torch_objects" % (split, self)] = \
+            len(final_counts) - out_logs["%s_%s_num_torch_objects" % (split, self)]
+        out_logs["%s_%s_new_eval_torch_objects_size" % (split, self)] = \
+            sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
 
         return out_logs
 
