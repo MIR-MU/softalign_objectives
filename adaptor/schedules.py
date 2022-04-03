@@ -190,7 +190,7 @@ class Schedule(abc.ABC):
         :return: Iterator over evaluation samples.
         """
         while True:
-            # check for stopping conditions at the beginning of every objective epoch
+            # check for stopping conditions at the beginning of every epoch's objective
             self.remember_if_should_stop()
 
             dataset = objective.get_dataset("train", obj_i, self.args.device)

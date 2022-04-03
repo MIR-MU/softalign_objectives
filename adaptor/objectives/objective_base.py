@@ -283,10 +283,6 @@ class Objective(abc.ABC):
             sample["oid"] = id(self)
             return sample
 
-        def _maybe_update_epoch(sample: Union[BatchEncoding, Dict[str, torch.LongTensor]]) -> Dict[str, torch.LongTensor]:
-
-            return sample
-
         device_inputs_iter = map(_sample_to_device, inputs_iter)
 
         if add_oid:

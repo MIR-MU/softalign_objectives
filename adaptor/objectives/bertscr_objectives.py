@@ -144,17 +144,11 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         self.scores_memory = []
 
     def _get_inputs_iterator(self, split: str) -> Iterator:
-        if split == "train":
-            for sample in super()._get_inputs_iterator(split):
-                # this objective needs to remember its inputs, to be able to conditionally generate
-                self.recent_sample = sample
-                # if self.our_single_sample is None:
-                #     self.our_single_sample = sample
-                yield sample
-                # else:
-                #     yield self.our_single_sample
-        else:
-            return super()._get_inputs_iterator(split)
+        for sample in super()._get_inputs_iterator(split):
+            # this objective needs to remember its inputs, to be able to conditionally generate
+            self.recent_sample = sample
+
+            yield sample
 
     def _erase_bert_tokenizer_extras(self,
                                      text: str,
@@ -314,8 +308,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       labels: torch.LongTensor,
                       num_samples: int = 20,
                       ignored_label: int = -100) -> torch.FloatTensor:
-        print("GPU usage log: ")
-        Adapter._objects_log()
+        # print("GPU usage log: ")
+        # Adapter._objects_log()
 
         assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
