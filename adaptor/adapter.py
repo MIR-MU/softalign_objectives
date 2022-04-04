@@ -85,6 +85,17 @@ class Adapter(Trainer):
         return super().log({**logs, **extended_logs})
 
     @staticmethod
+    def _del_tensors_of_xshape(xshape: int = 1):
+        import gc
+        deleted = 0
+        # manual garbage collection of the previous, unallocated inputs
+        for obj in gc.get_objects():
+            if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == xshape and obj.size()[1] <= 512:
+                del obj
+                deleted += 1
+        logger.warning("GPU: Deleted %s objects" % deleted)
+
+    @staticmethod
     def _count_objects() -> Dict[Tuple[int], int]:
         import gc
         objects_counter = dict()
@@ -115,13 +126,6 @@ class Adapter(Trainer):
     def evaluate(self, *args, **kwargs) -> Dict[str, float]:
         logger.warning("Evaluating...")
 
-        logger.warning("Cache cleanup.")
-        # torch.cuda.empty_cache()
-        # logger.warning("Allocated memory after cleanup: %s" % torch.cuda.memory_allocated(0))
-        logger.warning("GPU usage log BEFORE EVALUATION:")
-        self._objects_log()
-
-
         out = super(Adapter, self).evaluate(*args, **kwargs)
         if "metric_key_prefix" in kwargs:
             self.eval_metrics_prefix = kwargs["metric_key_prefix"]
@@ -129,10 +133,6 @@ class Adapter(Trainer):
         # refresh exhausted evaluation iteration for possible next evaluation
         self.eval_dataset = self.schedule.iterable_dataset("eval")
 
-        # import gc
-        # gc.collect(generation=0)
-        logger.warning("GPU usage log AFTER EVALUATION:")
-        self._objects_log()
         logger.warning("Allocated memory: %s" % torch.cuda.memory_allocated(0))
 
         return out

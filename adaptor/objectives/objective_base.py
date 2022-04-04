@@ -81,6 +81,9 @@ class Objective(abc.ABC):
         self.loss_weight = loss_weight
         self.num_steps = 0
 
+        # GPU debug
+        self.last_count = None
+
         self.compatible_head_model = self.register_compatible_head_model(lang_module,
                                                                          share_other_objective_head,
                                                                          {},
@@ -139,13 +142,15 @@ class Objective(abc.ABC):
         self.evaluations_history[split]["loss"].append(mean_loss)
 
         from adaptor.adapter import Adapter
-        init_counts = Adapter._count_objects()
-        # print("GPU: objects initially: %s" % init_counts)
+        Adapter._del_tensors_of_xshape(1)
 
-        # manual garbage collection of the previous, unallocated inputs
-        for obj in gc.get_objects():
-            if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == 1 and obj.size()[1] <= 512:
-                del obj
+        init_counts = Adapter._count_objects()
+
+        if self.last_count is not None:
+            print("GPU: new objects since the last log: %s"% Adapter._count_objects_diff(init_counts, self.last_count))
+
+            self.last_count = init_counts
+        # print("GPU: objects initially: %s" % init_counts)
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
@@ -155,8 +160,6 @@ class Objective(abc.ABC):
         out_logs["%s_%s_num_torch_objects" % (split, self)] = sum(init_counts.values())
 
         out_logs["%s_%s_torch_objects_size" % (split, self)] = sum(float(np.prod(list(shape))) for shape in init_counts.keys())
-
-        new_counts = Adapter._count_objects()
 
         for evaluator in self.evaluators[split]:
             dataset = self.get_dataset(split, 0, self.compatible_head_model.device,
@@ -170,11 +173,7 @@ class Objective(abc.ABC):
 
             # self.evaluations_history[split][evaluator].append(evaluator_value)
             out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
-
-        # manual garbage collection of the previous, unallocated inputs
-        for obj in gc.get_objects():
-            if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == 1 and obj.size()[1] <= 512:
-                del obj
+        Adapter._del_tensors_of_xshape(1)
 
         final_counts = Adapter._count_objects()
         print("GPU: objects change after evaluation + GC: %s"
