@@ -18,7 +18,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
 
         self.our_single_sample = None
 
-        self.recent_sample = None
+        # self.recent_sample = None
 
     # def _get_inputs_iterator(self, split: str) -> Iterator:
     #     for sample in super()._get_inputs_iterator(split):
@@ -136,15 +136,17 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                           requires_grad=True, device=self.device)
                             for i in range(self.tokenizer.model_max_length)}
 
+        self.own_iterator = iter(self._get_inputs_iterator("train"))
+
         self.distances_memory = []
         self.scores_memory = []
 
-    def _get_inputs_iterator(self, split: str) -> Iterator:
-        for sample in super()._get_inputs_iterator(split):
-            # this objective needs to remember its inputs, to be able to conditionally generate
-            self.recent_sample = sample
-
-            yield sample
+    # def _get_inputs_iterator(self, split: str) -> Iterator:
+    #     for sample in super()._get_inputs_iterator(split):
+    #         # this objective needs to remember its inputs, to be able to conditionally generate
+    #         self.recent_sample = sample
+    #
+    #         yield sample
 
     def _erase_bert_tokenizer_extras(self,
                                      text: str,
@@ -306,9 +308,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                       ignored_label: int = -100) -> torch.FloatTensor:
         # init_counts = Adapter._count_objects()
 
-        assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
+        # assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
-        batch = {k: v.to(self.device) for k, v in self.recent_sample.items()}
+        batch = {k: v.to(self.device) for k, v in next(self.own_iterator)}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
@@ -374,7 +376,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         # else:
         #     return torch.hstack(losses).mean()
 
-        self.recent_sample = None
+        # self.recent_sample = None
 
         # final_counts = Adapter._count_objects()
         # print("GPU: change of torch objects on one forward(): %s"
