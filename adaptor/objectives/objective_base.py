@@ -143,6 +143,7 @@ class Objective(abc.ABC):
 
         from adaptor.adapter import Adapter
         Adapter._del_tensors_of_xshape(1)
+        torch.cuda.empty_cache()
 
         init_counts = Adapter._count_objects()
 
@@ -185,6 +186,8 @@ class Objective(abc.ABC):
             sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
 
         self.last_count = final_counts
+
+        torch.cuda.empty_cache()
 
         return out_logs
 
