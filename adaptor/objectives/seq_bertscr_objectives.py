@@ -310,7 +310,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
         # assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
-        batch = {k: v.to(self.device) for k, v in next(self.own_iterator)}
+        batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
         input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
