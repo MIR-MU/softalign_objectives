@@ -146,10 +146,10 @@ class Objective(abc.ABC):
 
         init_counts = Adapter._count_objects()
 
+        print("Last count (start): %s" % self.last_count)
         if self.last_count is not None:
             print("GPU: new objects since the last log: %s"% Adapter._count_objects_diff(init_counts, self.last_count))
 
-            self.last_count = init_counts
         # print("GPU: objects initially: %s" % init_counts)
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
@@ -183,6 +183,9 @@ class Objective(abc.ABC):
             len(final_counts) - out_logs["%s_%s_num_torch_objects" % (split, self)]
         out_logs["%s_%s_new_eval_torch_objects_size" % (split, self)] = \
             sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
+
+        self.last_count = final_counts
+        print("Last count (end): %s" % self.last_count)
 
         return out_logs
 
