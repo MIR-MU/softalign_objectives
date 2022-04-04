@@ -146,7 +146,7 @@ class Objective(abc.ABC):
 
         init_counts = Adapter._count_objects()
 
-        print("Last count (start): %s" % self.last_count)
+        # print("Last count (start): %s" % self.last_count)
         if self.last_count is not None:
             print("GPU: new objects since the last log: %s"% Adapter._count_objects_diff(init_counts, self.last_count))
 
