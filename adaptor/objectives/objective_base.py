@@ -176,7 +176,7 @@ class Objective(abc.ABC):
         Adapter._del_tensors_of_xshape(1)
 
         final_counts = Adapter._count_objects()
-        print("GPU: objects change after evaluation + GC: %s"
+        print("GPU: objects change after logging + GC: %s"
               % Adapter._count_objects_diff(init_counts, final_counts))
 
         out_logs["%s_%s_new_eval_num_torch_objects" % (split, self)] = \
@@ -185,7 +185,6 @@ class Objective(abc.ABC):
             sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
 
         self.last_count = final_counts
-        print("Last count (end): %s" % self.last_count)
 
         return out_logs
 
