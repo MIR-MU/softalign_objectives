@@ -1,4 +1,5 @@
 import itertools
+import logging
 from typing import Tuple, Iterator, Union, Dict, Optional, List
 
 import torch
@@ -6,6 +7,9 @@ from transformers import BatchEncoding, PreTrainedTokenizer, BertTokenizer
 
 from adaptor.evaluators.generative import BERTScore
 from adaptor.objectives.seq2seq import Sequence2Sequence
+
+
+logger = logging.getLogger()
 
 
 class BERTScoreObjectiveBase(Sequence2Sequence):
@@ -58,11 +62,15 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         past = None
 
         while True:
-            outputs = self.compatible_head_model(attention_mask=inputs_parallel["attention_mask"],
-                                                 input_ids=None,
-                                                 past_key_values=past,
-                                                 decoder_input_ids=decoder_input,
-                                                 encoder_outputs=encoder_outputs)
+            try:
+                outputs = self.compatible_head_model(attention_mask=inputs_parallel["attention_mask"],
+                                                     input_ids=None,
+                                                     past_key_values=past,
+                                                     decoder_input_ids=decoder_input,
+                                                     encoder_outputs=encoder_outputs)
+            except RuntimeError as e:
+                logger.error("Runtime error on input: \n%s,\ndecoder_input_ids: %s" % (inputs, decoder_input))
+                raise e
             tokens_probs = outputs.logits.softmax(-1)
             if greedy:
                 # greedy search
@@ -78,8 +86,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     next_token_distr = torch.distributions.Categorical(tokens_probs)
                     sampled_next_token_rank = next_token_distr.sample()
                 except RuntimeError as e:
-                    # print("Runtime error on inputs %s" % inputs)
-                    print("Runtime error on inputs - OOM error?")
+                    print("Runtime error on input: \n%s" % inputs)
+                    # print("Runtime error on inputs - OOM error?")
                     raise e
                 if top_k_sampling is not None:
                     next_token_id = top_k_args[0, 0, sampled_next_token_rank]
@@ -304,8 +312,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
-                      num_samples: int = 20,
-                      ignored_label: int = -100) -> torch.FloatTensor:
+                      num_samples: int = 10,
+                      ignored_label: int = -100) -> torch.Tensor:
         # init_counts = Adapter._count_objects()
 
         # assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
@@ -316,59 +324,65 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         losses = []
         # batch_distances = []
         # batch_scores = []
+        try:
+            for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(batch["labels"],
+                                                                              self.do_sample(input_batch, num_samples)):
+                hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
+                ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
 
-        for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(batch["labels"],
-                                                                          self.do_sample(input_batch, num_samples)):
-            hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
-            ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
+                # remove hypotheses that can not be encoded with the embedder
 
-            # remove hypotheses that can not be encoded with the embedder
+                # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
+                with torch.no_grad():
+                    ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text,
+                                                                        return_tensors="pt",
+                                                                        truncation="longest_first",
+                                                                        padding=True).to(self.device)
 
-            # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
-            with torch.no_grad():
-                ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text,
-                                                                    return_tensors="pt",
-                                                                    truncation="longest_first",
-                                                                    padding=True).to(self.device)
+                    ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
 
-                ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
+                    hyps_embedder_inputs = self.scorer.scorer._tokenizer(hyps_text,
+                                                                         return_tensors="pt",
+                                                                         truncation="longest_first",
+                                                                         padding=True).to(self.device)
+                    # TODO: try without the mask, if it fails, apply the mask
+                    # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
 
-                hyps_embedder_inputs = self.scorer.scorer._tokenizer(hyps_text,
-                                                                     return_tensors="pt",
-                                                                     truncation="longest_first",
-                                                                     padding=True).to(self.device)
-                # TODO: try without the mask, if it fails, apply the mask
-                # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
+                    hyps_embeddings = self.scorer.scorer._model(**hyps_embedder_inputs)[0]
 
-                hyps_embeddings = self.scorer.scorer._model(**hyps_embedder_inputs)[0]
+                ref_embeddings.requires_grad_(True)
+                hyps_embeddings.requires_grad_(True)
 
-            ref_embeddings.requires_grad_(True)
-            hyps_embeddings.requires_grad_(True)
+                # TODO: this could be vectorised by matching one-hot per-character representations of wordpieces
+                for hyp_own_ids, hyp_token_scores, hyp_embeder_ids, hyp_embeddings in zip(hyps_own_ids,
+                                                                                          hyps_token_scores,
+                                                                                          hyps_embedder_inputs.input_ids,
+                                                                                          hyps_embeddings):
+                    own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
+                                                                                      hyp_own_ids,
+                                                                                      hyp_embeder_ids,
+                                                                                      hyp_embeddings)
+                    # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
+                    # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
+                    # losses.append(distances * hyp_token_scores[own_indices])
 
-            # TODO: this could be vectorised by matching one-hot per-character representations of wordpieces
-            for hyp_own_ids, hyp_token_scores, hyp_embeder_ids, hyp_embeddings in zip(hyps_own_ids,
-                                                                                      hyps_token_scores,
-                                                                                      hyps_embedder_inputs.input_ids,
-                                                                                      hyps_embeddings):
-                own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
-                                                                                  hyp_own_ids,
-                                                                                  hyp_embeder_ids,
-                                                                                  hyp_embeddings)
-                # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
-                # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                # losses.append(distances * hyp_token_scores[own_indices])
+                    scores = hyp_token_scores[own_indices]
 
-                scores = hyp_token_scores[own_indices]
+                    distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
-                distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
+                    scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
-                scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
+                    # batch_distances.append(distances_padded)
+                    # batch_scores.append(scores_padded)
 
-                # batch_distances.append(distances_padded)
-                # batch_scores.append(scores_padded)
+                    losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+        except RuntimeError as e:
+            logger.error("%s: Skipping input and returning zero loss" % e)
+            logger.error("%s: Saving corrupted model to `runtime_error_model`")
+            self.compatible_head_model.save_pretrained('runtime_error_model')
+            self.tokenizer.save_pretrained('runtime_error_model')
 
-                losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
-
+            return torch.tensor(0., requires_grad=True, dtype=torch.float)
         # if not losses:
         #     print("Warning: empty set of valid hypotheses to compute loss on.")
         #     # return torch.tensor(0., dtype=torch.float, requires_grad=True)
