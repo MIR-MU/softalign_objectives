@@ -107,7 +107,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
             # aggregate scores for policy gradients and return sequences with their scores
             seq_terminated = (seq == self.tokenizer.eos_token_id).any(dim=1)
             generated_length = len(seq[0])
-            if seq_terminated.all() or generated_length > 3 * len(inputs["input_ids"][0]):
+            max_length_reached = generated_length >= self.compatible_head_model.config.max_length - 1
+            if seq_terminated.all() or generated_length > 3 * len(inputs["input_ids"][0]) or max_length_reached:
                 # prune sequences to the earliest-eos-token
                 earliest_eoses = (seq == self.tokenizer.eos_token_id).long().argmax(-1)
                 agg_probs = []
