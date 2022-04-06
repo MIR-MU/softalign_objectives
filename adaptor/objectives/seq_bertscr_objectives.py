@@ -8,7 +8,6 @@ from transformers import BatchEncoding, PreTrainedTokenizer, BertTokenizer
 from adaptor.evaluators.generative import BERTScore
 from adaptor.objectives.seq2seq import Sequence2Sequence
 
-
 logger = logging.getLogger()
 
 
@@ -69,7 +68,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                                                      decoder_input_ids=decoder_input,
                                                      encoder_outputs=encoder_outputs)
             except RuntimeError as e:
-                logger.error("Runtime error on input: \n%s,\ndecoder_input_ids: %s" % (inputs, decoder_input))
+                print("Runtime error on decoder_input: %s" % decoder_input)
                 raise e
             tokens_probs = outputs.logits.softmax(-1)
             if greedy:
@@ -87,7 +86,6 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     sampled_next_token_rank = next_token_distr.sample()
                 except RuntimeError as e:
                     print("Runtime error on input: \n%s" % inputs)
-                    # print("Runtime error on inputs - OOM error?")
                     raise e
                 if top_k_sampling is not None:
                     next_token_id = top_k_args[0, 0, sampled_next_token_rank]
@@ -95,6 +93,10 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                 else:
                     next_token_id = sampled_next_token_rank
                     next_token_prob = tokens_probs[0, 0, next_token_id]
+
+            assert ((0 < next_token_id).all() and
+                    (next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
+                "Assertion failed: next_token_id: %s" % next_token_id
 
             seq = torch.hstack([seq, next_token_id])
             seq_probs = torch.hstack([seq_probs, next_token_prob])
