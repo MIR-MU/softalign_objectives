@@ -95,7 +95,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     next_token_prob = tokens_probs[0, 0, next_token_id]
 
             assert ((0 < next_token_id).all() and
-                    (next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
+                    (next_token_id <= self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
                 "Assertion failed: next_token_id: %s" % next_token_id
 
             seq = torch.hstack([seq, next_token_id])
