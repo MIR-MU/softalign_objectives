@@ -141,51 +141,21 @@ class Objective(abc.ABC):
         mean_loss = sum(loss_history) / len(loss_history) if len(loss_history) else 0
         self.evaluations_history[split]["loss"].append(mean_loss)
 
-        from adaptor.adapter import Adapter
-        Adapter._del_tensors_of_xshape(1)
-        torch.cuda.empty_cache()
-
-        init_counts = Adapter._count_objects()
-
-        # print("Last count (start): %s" % self.last_count)
-        if self.last_count is not None:
-            print("GPU: new objects since the last log: %s"% Adapter._count_objects_diff(init_counts, self.last_count))
-
         # print("GPU: objects initially: %s" % init_counts)
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
-        if torch.cuda.is_available():
-            out_logs["%s_%s_torch_cuda_allocated" % (split, self)] = torch.cuda.memory_allocated()
-            out_logs["%s_%s_torch_cuda_free" % (split, self)] = torch.cuda.mem_get_info()[0]
-        out_logs["%s_%s_num_torch_objects" % (split, self)] = sum(init_counts.values())
-
-        out_logs["%s_%s_torch_objects_size" % (split, self)] = sum(float(np.prod(list(shape))) for shape in init_counts.keys())
 
         for evaluator in self.evaluators[split]:
             dataset = self.get_dataset(split, 0, self.compatible_head_model.device,
                                        firstn=self.max_samples_per_log[split],
                                        add_oid=False,
                                        is_training_dataset=False)
-            new_counts = Adapter._count_objects()
-
             # evaluator should already return an aggregated value, so unlike loss, we don't average it
             evaluator_value = evaluator(self.compatible_head_model, self.tokenizer, dataset)
 
             # self.evaluations_history[split][evaluator].append(evaluator_value)
             out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
-        Adapter._del_tensors_of_xshape(1)
-
-        final_counts = Adapter._count_objects()
-        print("GPU: objects change after logging + GC: %s"
-              % Adapter._count_objects_diff(init_counts, final_counts))
-
-        out_logs["%s_%s_new_eval_num_torch_objects" % (split, self)] = \
-            len(final_counts) - out_logs["%s_%s_num_torch_objects" % (split, self)]
-        out_logs["%s_%s_new_eval_torch_objects_size" % (split, self)] = \
-            sum(np.prod(shape) for shape in final_counts.keys()) - out_logs["%s_%s_torch_objects_size" % (split, self)]
-
-        self.last_count = final_counts
 
         torch.cuda.empty_cache()
 
