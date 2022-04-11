@@ -111,7 +111,7 @@ seq_bible = Sequence2Sequence(lang_module,
                               objective_id="Bible")
 
 schedule = ParallelSchedule(objectives=[tokenbsc_wiki],
-                            extra_eval_objectives=[seq_wiki],
+                            extra_eval_objectives=[seq_opensub, seq_bible],
                             args=training_arguments)
 
 # for training from scratch, we use LangModule.reinitialize() after the initialization of all training Objectives
