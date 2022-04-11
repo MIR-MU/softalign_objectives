@@ -91,6 +91,7 @@ class Adapter(Trainer):
         # manual garbage collection of the previous, unallocated inputs
         for obj in gc.get_objects():
             if torch.is_tensor(obj) and len(obj.size()) == 2 and obj.size()[0] == xshape and obj.size()[1] <= 512:
+                # print("Number of references: %s" % len(gc.get_referrers(obj)))
                 del obj
                 deleted += 1
         logger.warning("GPU: Deleted %s objects" % deleted)
