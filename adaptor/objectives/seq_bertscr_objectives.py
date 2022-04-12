@@ -19,7 +19,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.scorer = BERTScore()
 
-        self.our_single_sample = None
+        self.own_iterator = iter(self._get_inputs_iterator("train"))
 
         # self.recent_sample = None
 
@@ -95,7 +95,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     next_token_prob = tokens_probs[0, 0, next_token_id]
 
             assert ((0 <= next_token_id).all() and
-                    (next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
+                    (
+                                next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
                 "Assertion failed: next_token_id: %s" % next_token_id
 
             seq = torch.hstack([seq, next_token_id])
@@ -134,30 +135,6 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         for input_tuple in zip(*(inputs[attr] for attr in batch_attributes)):
             input_tuple_batch = (i.unsqueeze(0) for i in input_tuple)
             yield self.sample_n(dict(zip(batch_attributes, input_tuple_batch)), num_samples)
-
-
-class SeqBertScoreObjective(BERTScoreObjectiveBase):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.distances_pads = {i: torch.zeros(self.tokenizer.model_max_length - i,
-                                              requires_grad=True, device=self.device)
-                               for i in range(self.tokenizer.model_max_length)}
-        self.scores_pads = {i: torch.ones(self.tokenizer.model_max_length - i,
-                                          requires_grad=True, device=self.device)
-                            for i in range(self.tokenizer.model_max_length)}
-
-        self.own_iterator = iter(self._get_inputs_iterator("train"))
-
-        self.distances_memory = []
-        self.scores_memory = []
-
-    # def _get_inputs_iterator(self, split: str) -> Iterator:
-    #     for sample in super()._get_inputs_iterator(split):
-    #         # this objective needs to remember its inputs, to be able to conditionally generate
-    #         self.recent_sample = sample
-    #
-    #         yield sample
 
     def _erase_bert_tokenizer_extras(self,
                                      text: str,
@@ -312,6 +289,34 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         encoding_contains_unks = (embedder_inputs == self.scorer.scorer._tokenizer.unk_token_id).any(axis=1)
         return ~encoding_contains_unks
 
+    def _embeddings_for_text(self, texts: List[str]) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
+        embedder_inputs = self.scorer.scorer._tokenizer(texts,
+                                                        return_tensors="pt",
+                                                        truncation="longest_first",
+                                                        padding=True).to(self.device)
+
+        embeddings = self.scorer.scorer._model(**embedder_inputs)[0]
+        return embedder_inputs, embeddings
+
+
+class SeqBertScoreObjective(BERTScoreObjectiveBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.distances_pads = {i: torch.zeros(self.tokenizer.model_max_length - i,
+                                              requires_grad=True, device=self.device)
+                               for i in range(self.tokenizer.model_max_length)}
+        self.scores_pads = {i: torch.ones(self.tokenizer.model_max_length - i,
+                                          requires_grad=True, device=self.device)
+                            for i in range(self.tokenizer.model_max_length)}
+
+    # def _get_inputs_iterator(self, split: str) -> Iterator:
+    #     for sample in super()._get_inputs_iterator(split):
+    #         # this objective needs to remember its inputs, to be able to conditionally generate
+    #         self.recent_sample = sample
+    #
+    #         yield sample
+
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
                       labels: torch.LongTensor,
@@ -337,21 +342,11 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
                 # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
                 with torch.no_grad():
-                    ref_embedder_inputs = self.scorer.scorer._tokenizer(ref_text,
-                                                                        return_tensors="pt",
-                                                                        truncation="longest_first",
-                                                                        padding=True).to(self.device)
+                    _, ref_embeddings = self._embeddings_for_text([ref_text])[0]
+                    hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
 
-                    ref_embeddings = self.scorer.scorer._model(**ref_embedder_inputs)[0][0]
-
-                    hyps_embedder_inputs = self.scorer.scorer._tokenizer(hyps_text,
-                                                                         return_tensors="pt",
-                                                                         truncation="longest_first",
-                                                                         padding=True).to(self.device)
-                    # TODO: try without the mask, if it fails, apply the mask
+                    # TODO: if it fails, apply the mask
                     # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
-
-                    hyps_embeddings = self.scorer.scorer._model(**hyps_embedder_inputs)[0]
 
                 ref_embeddings.requires_grad_(True)
                 hyps_embeddings.requires_grad_(True)

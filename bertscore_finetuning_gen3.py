@@ -40,20 +40,21 @@ bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=8e-6,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=3e-6,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          # stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
-                                         max_steps=1000000,
-                                         gradient_accumulation_steps=30,
+                                         max_steps=100000,
+                                         gradient_accumulation_steps=10,
                                          logging_steps=5,
                                          eval_steps=50,
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
-                                         also_log_converged_objectives=True)
+                                         also_log_converged_objectives=True,
+                                         stopping_patience=100)
 
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs")
