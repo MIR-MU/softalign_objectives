@@ -95,8 +95,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     next_token_prob = tokens_probs[0, 0, next_token_id]
 
             assert ((0 <= next_token_id).all() and
-                    (
-                                next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
+            (next_token_id < self.compatible_head_model.base_model.encoder.embed_tokens.num_embeddings).all()).item(), \
                 "Assertion failed: next_token_id: %s" % next_token_id
 
             seq = torch.hstack([seq, next_token_id])
@@ -156,6 +155,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         else:
             tokens = [subword for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
                       if subword not in tokenizer.all_special_tokens]
+            # tokens = tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
 
         lengths = [len(token) for token in tokens]
         cum_lengths = [0, lengths[0]]  # TODO: IndexError: list index out of range (cpu experiment)
@@ -206,8 +206,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         own_tokens, own_intervals = self._intervals_for_text_tokenizer(own_ids, self.tokenizer)
         emb_tokens, emb_intervals = self._intervals_for_text_tokenizer(embedder_ids, self.scorer.scorer._tokenizer)
 
-        own_pointer = 0
-        emb_pointer = start_pos
+        own_pointer = start_pos
+        emb_pointer = 0
 
         end_pos = end_pos if end_pos is not None else len(own_tokens)
 
@@ -280,10 +280,13 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         hyp_ids_embeddings = self._embeddings_on_coordinates(hyp_embeddings, aligned_hyp_ids)
 
         # here, also alignments to the reference can be accessed (.min(-1).indices)
-        hyp_ids_distances = torch.cdist(hyp_ids_embeddings, ref_embeddings).softmax(-1).min(-1)
+        emb_distances = torch.cdist(hyp_ids_embeddings, ref_embeddings)
+        # norm by the size of the reference -> this should make the distances of different references comparable
+        hyp_ids_distances_normed = emb_distances / emb_distances.sum()
+        hyp_ids_distances_min = hyp_ids_distances_normed.min(-1)
 
         # alignment to the reference check:
-        return own_ids_pos, hyp_ids_distances.indices, hyp_ids_distances.values
+        return own_ids_pos, hyp_ids_distances_min.indices, hyp_ids_distances_min.values
 
     def _get_decodeable_hyps_mask(self, embedder_inputs: torch.LongTensor) -> torch.Tensor:
         encoding_contains_unks = (embedder_inputs == self.scorer.scorer._tokenizer.unk_token_id).any(axis=1)
@@ -357,6 +360,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                                                                           hyps_token_scores,
                                                                                           hyps_embedder_inputs.input_ids,
                                                                                           hyps_embeddings):
+                    # TODO priority: check hyp_embeddings shape (should be 2D)
                     own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
                                                                                       hyp_own_ids,
                                                                                       hyp_embeder_ids,
