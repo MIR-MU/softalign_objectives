@@ -36,7 +36,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
 
         loss = torch.tensor(0., requires_grad=True, device=self.device)
 
-        targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1])
+        targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
         for ref_ids, sample_pred_tokens, logits in zip(batch["labels"].tolist(), topk_indices.tolist(), outputs.logits):
             for pos in range(len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
