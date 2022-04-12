@@ -19,7 +19,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         super().__init__(*args, **kwargs)
         self.num_samples = num_samples
         padded_shape = self.compatible_head_model.config.vocab_size - num_samples
-        self.label_pad = torch.zeros(padded_shape, dtype=torch.float, requires_grad=True)
+        # self.label_pad = torch.zeros(padded_shape, dtype=torch.float, requires_grad=True)
 
     def _compute_loss(self,
                       lm_logit_outputs: torch.FloatTensor,
@@ -84,7 +84,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                 assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
                     "Some computed targets have strange range!"
                 # done: adjusted targets are on different positions
-                pos_targets = torch.zeros_like(lm_logit_outputs[0, 0])
+                pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
                 pos_targets[current_predicted_ids] = pos_targets_adjusted
                 # done: distances after softmax do not vary - all are too small!
                 # TODO: do targets even require_grad? Now they do.
