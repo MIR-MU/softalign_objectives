@@ -62,7 +62,8 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                         if pos < len(hyp_ids) - 1:
                             # we penalize all special tokens except the ones terminating the hyp (to avoid repetition)
                             # but we use mean dist as penalisation, not to break the following normalisation
-                            special_symbol_dist = torch.hstack(pos_dists).mean().item()
+                            special_symbol_dist = torch.hstack(pos_dists).mean().item() if pos_dists \
+                                else hyp_pos_dist.item()
                         else:
                             special_symbol_dist = 0.
                         pos_dists.append(torch.tensor([special_symbol_dist], requires_grad=True, device=self.device))
