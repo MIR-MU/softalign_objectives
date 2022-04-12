@@ -34,7 +34,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         outputs = self.compatible_head_model(**input_batch)
         topk_logits, topk_indices = outputs.logits.topk(10, dim=-1)
 
-        loss = torch.tensor(0., requires_grad=True)
+        loss = torch.tensor(0., requires_grad=True, device=self.device)
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1])
         for ref_ids, sample_pred_tokens, logits in zip(batch["labels"].tolist(), topk_indices.tolist(), outputs.logits):
@@ -65,7 +65,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                             special_symbol_dist = torch.hstack(pos_dists).mean().item()
                         else:
                             special_symbol_dist = 0.
-                        pos_dists.append(torch.tensor([special_symbol_dist], requires_grad=True))
+                        pos_dists.append(torch.tensor([special_symbol_dist], requires_grad=True, device=self.device))
                         continue
 
                     own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
