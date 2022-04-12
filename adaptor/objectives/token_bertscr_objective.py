@@ -86,13 +86,19 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     "Some computed targets have strange range!"
                 # done: adjusted targets are on different positions
                 pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
+                if len(current_predicted_ids) != len(pos_targets_adjusted):
+                    print("Misalignment on pos %s ref_ids %s" % (pos, ref_ids))
+                    continue
+
                 pos_targets[current_predicted_ids] = pos_targets_adjusted
                 # done: distances after softmax do not vary - all are too small!
                 # TODO: do targets even require_grad? Now they do.
                 targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
 
+            if logits.shape != targets_per_sample.shape:
+                # TODO: hot-fix (see TODO in _get_own_to_embedder_alignment)
+                continue
             sample_loss = loss_inst(logits, targets_per_sample)
-
             loss = loss + sample_loss
         # targets = torch.hstack([targets_per_sample, self.label_pad.expand(targets_per_sample.shape[0], -1)])
         # targets_batched = targets.resize_as(topk_logits)

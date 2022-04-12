@@ -239,6 +239,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     # print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
                     #       "token. Own tokens: %s, embedded tokens: %s"
                     #       % (own_tokens[own_pointer], emb_tokens[best_alignment]))
+                    # TODO priority: we do not like that this sometimes returns nothing
                     pass
                 else:
                     own_indices.append(own_pointer)
