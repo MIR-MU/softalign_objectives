@@ -342,7 +342,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
                 # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
                 with torch.no_grad():
-                    _, ref_embeddings = self._embeddings_for_text([ref_text])[0]
+                    _, ref_embeddings = self._embeddings_for_text([ref_text])
+                    ref_embeddings = ref_embeddings[0]
                     hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
 
                     # TODO: if it fails, apply the mask
