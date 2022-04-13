@@ -38,7 +38,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
         for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(), outputs.logits):
-            for pos in range(130, len(ref_ids)):
+            for pos in range(len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
                 prev_ids = ref_ids[:pos]
                 current_predicted_ids = sample_pred_tokens[pos]
