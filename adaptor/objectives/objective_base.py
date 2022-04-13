@@ -330,7 +330,7 @@ class Objective(abc.ABC):
         logits = self.compatible_head_model(**model_inputs).logits
 
         logger.warning("Computing loss")
-        loss = self._compute_loss(inputs=self.last_input, logit_outputs=logits, labels=labels)
+        loss = self._compute_loss(self.last_input, logits, labels)
 
         logger.warning("Loss computation on the recent sample successful. Loss value: %s", loss.item())
         return loss
