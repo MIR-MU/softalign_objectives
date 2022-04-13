@@ -27,7 +27,6 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                       labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.Tensor:
-        # batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels")}
 
         loss_inst = torch.nn.CrossEntropyLoss()
@@ -39,7 +38,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
         for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(), outputs.logits):
-            for pos in range(len(ref_ids)):
+            for pos in range(130, len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
                 prev_ids = ref_ids[:pos]
                 current_predicted_ids = sample_pred_tokens[pos]
@@ -76,8 +75,8 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                                                                                        hyp_emb,
                                                                                        start_own_pos=pos,
                                                                                        end_own_pos=pos + 1)
-                    if len(hyp_pos_dist) < 1:
-                        print("Misalignment on pos %s ref_ids %s" % (pos, ref_ids))
+                    # if len(hyp_pos_dist) < 1:
+                    #     print("Misalignment on pos %s ref_ids %s" % (pos, ref_ids))
                     pos_dists.append(hyp_pos_dist)
 
                 pos_dists_t = torch.hstack(pos_dists)
@@ -94,9 +93,6 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                 # TODO: do targets even require_grad? Now they do.
                 targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
 
-            if logits.shape != targets_per_sample.shape:
-                # TODO: hot-fix (see TODO in _get_own_to_embedder_alignment)
-                continue
             sample_loss = loss_inst(logits, targets_per_sample)
             loss = loss + sample_loss
         # targets = torch.hstack([targets_per_sample, self.label_pad.expand(targets_per_sample.shape[0], -1)])

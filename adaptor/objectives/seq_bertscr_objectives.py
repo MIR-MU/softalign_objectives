@@ -153,8 +153,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
             tokens = [self._erase_bert_tokenizer_extras(subword, tokenizer)
                       for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
         else:
-            tokens = [subword for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
-                      if subword not in tokenizer.all_special_tokens]
+            tokens = [subword if subword not in tokenizer.all_special_tokens else ""
+                      for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
             # tokens = tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
 
         lengths = [len(token) for token in tokens]
