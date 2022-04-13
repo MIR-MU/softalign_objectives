@@ -22,12 +22,13 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         # self.label_pad = torch.zeros(padded_shape, dtype=torch.float, requires_grad=True)
 
     def _compute_loss(self,
-                      lm_logit_outputs: torch.FloatTensor,
-                      labels: torch.LongTensor,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      lm_logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.Tensor:
-        batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
-        input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels")}
+        # batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
+        input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels")}
 
         loss_inst = torch.nn.CrossEntropyLoss()
 
@@ -37,7 +38,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         loss = torch.tensor(0., requires_grad=True, device=self.device)
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
-        for ref_ids, sample_pred_tokens, logits in zip(batch["labels"].tolist(), topk_indices.tolist(), outputs.logits):
+        for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(), outputs.logits):
             for pos in range(len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
                 prev_ids = ref_ids[:pos]
@@ -75,6 +76,8 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                                                                                        hyp_emb,
                                                                                        start_own_pos=pos,
                                                                                        end_own_pos=pos + 1)
+                    if len(hyp_pos_dist) < 1:
+                        print("Misalignment on pos %s ref_ids %s" % (pos, ref_ids))
                     pos_dists.append(hyp_pos_dist)
 
                 pos_dists_t = torch.hstack(pos_dists)
@@ -86,10 +89,6 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     "Some computed targets have strange range!"
                 # done: adjusted targets are on different positions
                 pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
-                if len(current_predicted_ids) != len(pos_targets_adjusted):
-                    print("Misalignment on pos %s ref_ids %s" % (pos, ref_ids))
-                    continue
-
                 pos_targets[current_predicted_ids] = pos_targets_adjusted
                 # done: distances after softmax do not vary - all are too small!
                 # TODO: do targets even require_grad? Now they do.
@@ -157,7 +156,10 @@ class TokenBertScoreObjectiveOld(Sequence2Sequence):
 
         return loss_agg
 
-    def _compute_loss(self, lm_logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def _compute_loss(self,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      lm_logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
         """This loss does the following sequence of steps:
         1. infer contextualized embeddings (e) for each token of translation hypothesis (e_hyp) and reference (e_ref)
         2. for each hypothesis token, find the best-matching token from reference, based on their embedding distance.

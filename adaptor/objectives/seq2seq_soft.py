@@ -131,8 +131,9 @@ class MinimumRiskTraining(Sequence2Sequence):
             yield self.sample_n(dict(zip(batch_attributes, input_tuple_batch)), num_samples)
 
     def _compute_loss(self,
-                      lm_logit_outputs: torch.FloatTensor,
-                      labels: torch.LongTensor,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3) -> torch.FloatTensor:
         # github.com/pytorch/fairseq/blob/23adb0c110fdd5e9166b3939987c5d26df996ec3/fairseq/criterions/sequence_risk_criterion.py#L44
         # + https://aclanthology.org/P16-1159.pdf
@@ -440,8 +441,9 @@ class TokenBertScoreObjective(MinimumRiskTraining):
         return ~encoding_contains_unks
 
     def _compute_loss(self,
-                      lm_logit_outputs: torch.FloatTensor,
-                      labels: torch.LongTensor,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.FloatTensor:
         batch = {k: v.to(self.device) for k, v in self.samples_queue.pop().items()}
@@ -564,7 +566,10 @@ class MinimumFlow(Sequence2Sequence):
 
         return loss_agg
 
-    def _compute_loss(self, lm_logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def _compute_loss(self,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      lm_logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
         """This loss does the following sequence of steps:
         1. infer contextualized embeddings (e) for each token of translation hypothesis (e_hyp) and reference (e_ref)
         2. for each hypothesis token, find the best-matching token from reference, based on their embedding distance.

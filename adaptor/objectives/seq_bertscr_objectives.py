@@ -322,16 +322,17 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
     #         yield sample
 
     def _compute_loss(self,
-                      lm_logit_outputs: torch.FloatTensor,
-                      labels: torch.LongTensor,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      lm_logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 10,
                       ignored_label: int = -100) -> torch.Tensor:
         # init_counts = Adapter._count_objects()
 
         # assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
 
-        batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
-        input_batch = {k: v for k, v in batch.items() if k not in ("oid", "labels", "decoder_input_ids")}
+        # batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
+        input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
         # batch_distances = []

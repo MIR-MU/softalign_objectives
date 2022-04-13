@@ -13,7 +13,6 @@ from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..utils import AdaptationDataset, Head, TransformerAdaptationDataset
 
-
 logger = logging.getLogger()
 
 
@@ -26,6 +25,7 @@ class Objective(abc.ABC):
     given_id: Optional[str]
     epoch: int
     num_steps: int
+    last_input: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]]
 
     texts: Optional[List[str]]
     texts_path: Optional[str]
@@ -53,7 +53,8 @@ class Objective(abc.ABC):
                  objective_id: Optional[str] = "",
                  loss_weight: Optional[float] = 1,
                  max_samples_per_log: int = 1000,
-                 max_samples_per_eval_log: int = 10000):
+                 max_samples_per_eval_log: int = 10000,
+                 remember_last_input: Optional[bool] = False):
         """
         Shared initialisation logic of every Objective.
         Registers a compatible model for this objective to given `lang_module`,
@@ -80,9 +81,8 @@ class Objective(abc.ABC):
         self.given_id = objective_id
         self.loss_weight = loss_weight
         self.num_steps = 0
-
-        # GPU debug
-        self.last_count = None
+        self.remember_last_input = remember_last_input
+        self.last_input = None
 
         self.compatible_head_model = self.register_compatible_head_model(lang_module,
                                                                          share_other_objective_head,
@@ -140,8 +140,6 @@ class Objective(abc.ABC):
         loss_history = self.loss_history[split][-self.max_samples_per_log[split]:]
         mean_loss = sum(loss_history) / len(loss_history) if len(loss_history) else 0
         self.evaluations_history[split]["loss"].append(mean_loss)
-
-        # print("GPU: objects initially: %s" % init_counts)
 
         out_logs["%s_%s_loss" % (split, self)] = mean_loss
         out_logs["%s_%s_num_batches" % (split, self)] = len(loss_history)
@@ -213,7 +211,10 @@ class Objective(abc.ABC):
         return passed_patience_evals and did_not_improve
 
     @abc.abstractmethod
-    def _compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def _compute_loss(self,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
         """
         An implementation of the loss computation for a given objective.
         Override this, or inherit it from other suitable objective when implementing custom objective.
@@ -223,16 +224,21 @@ class Objective(abc.ABC):
         """
         pass
 
-    def compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor, split: str) -> torch.FloatTensor:
+    def compute_loss(self,
+                     inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                     logit_outputs: Optional[torch.FloatTensor] = None,
+                     labels: Optional[torch.LongTensor] = None,
+                     split: Optional[str] = "") -> torch.FloatTensor:
         """
         Shared wrapper of objective-specific loss computation. Additionally, it registers model outputs, and labels
         for logging and updates this objective progress bar.
+        :param inputs:
         :param logit_outputs:
         :param labels:
         :param split:
         :return:
         """
-        loss = self._compute_loss(logit_outputs, labels)
+        loss = self._compute_loss(inputs, logit_outputs, labels)
         self.loss_history[split].append(loss.item())
         self.num_steps += 1
 
@@ -293,6 +299,10 @@ class Objective(abc.ABC):
             sample["oid"] = id(self)
             return sample
 
+        def _remember_input(sample: Union[BatchEncoding, Dict[str, torch.LongTensor]]) -> Dict[str, torch.LongTensor]:
+            self.last_input = sample
+            return sample
+
         device_inputs_iter = map(_sample_to_device, inputs_iter)
 
         if add_oid:
@@ -301,7 +311,30 @@ class Objective(abc.ABC):
         if firstn is not None and firstn < self.dataset_length[split]:
             device_inputs_iter = itertools.islice(device_inputs_iter, firstn)
 
+        if self.remember_last_input:
+            device_inputs_iter = map(_remember_input, device_inputs_iter)
+
         return TransformerAdaptationDataset(device_inputs_iter, self.dataset_length[split])
+
+    def compute_loss_on_last_sample(self) -> torch.FloatTensor:
+        if not self.remember_last_input:
+            raise ValueError("This objective does not remember its last output. "
+                             "For debugging, initialize the objective with `remember_last_input=True`.")
+
+        logger.warning("Reproducing loss computation on the last sample")
+        logger.warning("The last sample can be retrieved from `this_objective_instance.last_input`")
+        labels = self.last_input["labels"]
+
+        logger.warning("Computing model output")
+        model_inputs = {k: v for k, v in self.last_input.items() if k not in ("oid", "labels")}
+        logits = self.compatible_head_model(**model_inputs).logits
+
+        logger.warning("Computing loss")
+        loss = self._compute_loss(inputs=self.last_input, logit_outputs=logits, labels=labels)
+
+        logger.warning("Loss computation on the recent sample successful. Loss value: %s", loss.item())
+        return loss
+
 
     @abc.abstractmethod
     def _per_split_iterators(self, split: str) -> Union[Iterable[str], Tuple[Iterable[str], Iterable[str]]]:
@@ -391,7 +424,6 @@ class UnsupervisedObjective(Objective, abc.ABC):
 
 
 class SupervisedObjective(UnsupervisedObjective, abc.ABC):
-
     labels_path: Optional[str] = None
     labels: Optional[List[str]] = None
 
