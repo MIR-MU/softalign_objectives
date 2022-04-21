@@ -170,7 +170,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     # again, in order not to spoil normalisation
                     positive_dists = pos_dists_t[pos_dists_t >= 0]
                     if positive_dists.numel():
-                        pos_dists_t[pos_dists_t < 0] = torch.tensor(positive_dists.item(), requires_grad=True)
+                        pos_dists_t[pos_dists_t < 0] = torch.tensor(positive_dists.min().item(), requires_grad=True)
                     else:
                         pos_dists_t[pos_dists_t < 0] = torch.tensor(0., requires_grad=True)
 
