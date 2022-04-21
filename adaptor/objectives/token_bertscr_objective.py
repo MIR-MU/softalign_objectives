@@ -159,13 +159,20 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                 if torch.any(pos_dists_t > 1):
                     # except the sanctioned item
                     # adjust so-assigned max distances by the other items max, to avoid making "trues" of everything
-                    pos_dists_t[pos_dists_t > 1] = torch.tensor(pos_dists_t[pos_dists_t <= 1].max().item(),
-                                                                requires_grad=True)
+                    organic_dists = pos_dists_t[pos_dists_t <= 1]
+                    if organic_dists.numel():
+                        pos_dists_t[pos_dists_t > 1] = torch.tensor(organic_dists.max().item(), requires_grad=True)
+                    else:
+                        pos_dists_t[pos_dists_t < 0] = torch.tensor(1., requires_grad=True)
+
                 if torch.any(pos_dists_t < 0):
                     # assign min in-batch value for special tokens in the middle of hypotheses,
                     # again, in order not to spoil normalisation
-                    pos_dists_t[pos_dists_t < 0] = torch.tensor(pos_dists_t[pos_dists_t >= 0].min().item(),
-                                                                requires_grad=True)
+                    positive_dists = pos_dists_t[pos_dists_t >= 0]
+                    if positive_dists.numel():
+                        pos_dists_t[pos_dists_t < 0] = torch.tensor(positive_dists.item(), requires_grad=True)
+                    else:
+                        pos_dists_t[pos_dists_t < 0] = torch.tensor(0., requires_grad=True)
 
                 pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
                 pos_targets_adjusted = 1 - pos_dists_scaled
