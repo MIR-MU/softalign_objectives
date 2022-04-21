@@ -115,70 +115,70 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     _, refs_embeddings = self._embeddings_for_text([ref])
                     refs_embeddings = refs_embeddings[0]
 
-                    # refs_embeddings.requires_grad_(True)
-                    # hyps_embeddings.requires_grad_(True)
+                    refs_embeddings.requires_grad_(True)
+                    hyps_embeddings.requires_grad_(True)
 
-                    pos_dists = []
-                    for hyp_ids, hyp_emb_ids, hyp_emb in zip(hyps_ids, hyps_embedder_ids["input_ids"], hyps_embeddings):
-                        if hyp_ids[pos] in self.tokenizer.all_special_ids:
-                            if pos < len(hyp_ids) - 1:
-                                # we penalize all special tokens except the ones terminating the hyp (to avoid repetition)
-                                # but we use mean dist as penalisation, not to break the later normalisation
-                                special_symbol_dist = -1.
-                            else:
-                                special_symbol_dist = 0.
-                            pos_dists.append(torch.tensor([special_symbol_dist], device=self.device))
-                            continue
+                pos_dists = []
+                for hyp_ids, hyp_emb_ids, hyp_emb in zip(hyps_ids, hyps_embedder_ids["input_ids"], hyps_embeddings):
+                    if hyp_ids[pos] in self.tokenizer.all_special_ids:
+                        if pos < len(hyp_ids) - 1:
+                            # we penalize all special tokens except the ones terminating the hyp (to avoid repetition)
+                            # but we use mean dist as penalisation, not to break the later normalisation
+                            special_symbol_dist = -1.
+                        else:
+                            special_symbol_dist = 0.
+                        pos_dists.append(torch.tensor([special_symbol_dist], device=self.device))
+                        continue
 
-                        own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
-                                                                                           hyp_ids,
-                                                                                           hyp_emb_ids,
-                                                                                           hyp_emb,
-                                                                                           start_own_pos=pos,
-                                                                                           end_own_pos=pos + 1)
-                        if len(hyp_pos_dist) < 1:
-                            logger.warning("Misalignment on pos %s inputs %s." % (pos, inputs))
-                            logger.warning("This is usually due to a generation of a special token within the first %s "
-                                           "positions. Returning loss=1. for this position.", self.num_samples)
-                            hyp_pos_dist = torch.tensor(2., device=self.device)
+                    own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
+                                                                                       hyp_ids,
+                                                                                       hyp_emb_ids,
+                                                                                       hyp_emb,
+                                                                                       start_own_pos=pos,
+                                                                                       end_own_pos=pos + 1)
+                    if len(hyp_pos_dist) < 1:
+                        logger.warning("Misalignment on pos %s inputs %s." % (pos, inputs))
+                        logger.warning("This is usually due to a generation of a special token within the first %s "
+                                       "positions. Expecting target=0. for this position.", self.num_samples)
+                        hyp_pos_dist = torch.tensor(2., device=self.device)
 
-                            # TODO: remove me:
-                            # self._distances_for_hyp_ids(refs_embeddings,
-                            #                             hyp_ids,
-                            #                             hyp_emb_ids,
-                            #                             hyp_emb,
-                            #                             start_own_pos=pos,
-                            #                             end_own_pos=pos + 1)
+                        # TODO: remove me:
+                        # self._distances_for_hyp_ids(refs_embeddings,
+                        #                             hyp_ids,
+                        #                             hyp_emb_ids,
+                        #                             hyp_emb,
+                        #                             start_own_pos=pos,
+                        #                             end_own_pos=pos + 1)
 
-                        pos_dists.append(hyp_pos_dist)
+                    pos_dists.append(hyp_pos_dist)
 
-                    pos_dists_t = torch.hstack(pos_dists)
+                pos_dists_t = torch.hstack(pos_dists)
 
-                    if torch.any(pos_dists_t > 1):
-                        # except the sanctioned item
-                        # adjust so-assigned max distances by the other items max, to avoid making "trues" of everything
-                        pos_dists_t[pos_dists_t > 1] = torch.tensor(pos_dists_t[pos_dists_t <= 1].max().item(),
-                                                                    requires_grad=True)
-                    if torch.any(pos_dists_t < 0):
-                        # assign min in-batch value for special tokens in the middle of hypotheses,
-                        # again, in order not to spoil normalisation
-                        pos_dists_t[pos_dists_t < 0] = torch.tensor(pos_dists_t[pos_dists_t >= 0].min().item(),
-                                                                    requires_grad=True)
+                if torch.any(pos_dists_t > 1):
+                    # except the sanctioned item
+                    # adjust so-assigned max distances by the other items max, to avoid making "trues" of everything
+                    pos_dists_t[pos_dists_t > 1] = torch.tensor(pos_dists_t[pos_dists_t <= 1].max().item(),
+                                                                requires_grad=True)
+                if torch.any(pos_dists_t < 0):
+                    # assign min in-batch value for special tokens in the middle of hypotheses,
+                    # again, in order not to spoil normalisation
+                    pos_dists_t[pos_dists_t < 0] = torch.tensor(pos_dists_t[pos_dists_t >= 0].min().item(),
+                                                                requires_grad=True)
 
-                    pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
-                    pos_targets_adjusted = 1 - pos_dists_scaled
-                    # scoring of hypotheses variations on a given position:
-                    # list(zip(self.tokenizer.batch_decode(current_predicted_ids), pos_targets_adjusted.tolist()))
-                    assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
-                        "Some computed targets have strange range!"
-                    # done: adjusted targets are on different positions
-                    pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
-                    pos_targets[current_predicted_ids] = pos_targets_adjusted
-                    # done: distances after softmax do not vary - all are too small!
-                    # TODO: do targets even require_grad? Now they do.
-                    targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
+                pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
+                pos_targets_adjusted = 1 - pos_dists_scaled
+                # scoring of hypotheses variations on a given position:
+                # list(zip(self.tokenizer.batch_decode(current_predicted_ids), pos_targets_adjusted.tolist()))
+                assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
+                    "Some computed targets have strange range!"
+                # done: adjusted targets are on different positions
+                pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
+                pos_targets[current_predicted_ids] = pos_targets_adjusted
+                # done: distances after softmax do not vary - all are too small!
+                # TODO: do targets even require_grad? Now they do.
+                targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
 
-                    # here ends no_grad()
+                # here ends no_grad()
 
             sample_loss = loss_inst(logits, targets_per_sample)
             loss = loss + sample_loss
