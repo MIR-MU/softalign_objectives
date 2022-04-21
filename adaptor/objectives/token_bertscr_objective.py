@@ -99,6 +99,13 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
         for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(),
                                                        outputs.logits):
+            with torch.no_grad():
+                ref = self.tokenizer.decode(ref_ids)
+                _, refs_embeddings = self._embeddings_for_text([ref])
+                refs_embeddings = refs_embeddings[0]
+
+            refs_embeddings.requires_grad_(True)
+
             # TODO: maybe remove me:
             for pos in range(len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
@@ -111,12 +118,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     hyps = self.tokenizer.batch_decode(hyps_ids)
                     hyps_embedder_ids, hyps_embeddings = self._embeddings_for_text(hyps)
 
-                    ref = self.tokenizer.decode(ref_ids)
-                    _, refs_embeddings = self._embeddings_for_text([ref])
-                    refs_embeddings = refs_embeddings[0]
-
-                    refs_embeddings.requires_grad_(True)
-                    hyps_embeddings.requires_grad_(True)
+                hyps_embeddings.requires_grad_(True)
 
                 pos_dists = []
                 for hyp_ids, hyp_emb_ids, hyp_emb in zip(hyps_ids, hyps_embedder_ids["input_ids"], hyps_embeddings):
@@ -129,7 +131,7 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                             special_symbol_dist = 0.
                         pos_dists.append(torch.tensor([special_symbol_dist], device=self.device))
                         continue
-
+                    # TODO: don't do this per-position! Reducing complexity from |pos|ˆ2/2 to |pos|
                     own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
                                                                                        hyp_ids,
                                                                                        hyp_emb_ids,
