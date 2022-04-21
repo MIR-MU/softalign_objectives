@@ -50,7 +50,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          max_steps=100000,
                                          gradient_accumulation_steps=30,
                                          logging_steps=5,
-                                         eval_steps=100,
+                                         eval_steps=20,
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -67,12 +67,12 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_a
 tokenbsc_wiki = TokenBertScoreObjective(lang_module,
                                         texts_or_path=wiki_pairs.source,
                                         labels_or_path=wiki_pairs.target,
-                                        val_texts_or_path=wiki_val_pairs.source,
-                                        val_labels_or_path=wiki_val_pairs.target,
+                                        val_texts_or_path=wiki_val_pairs.source[:20],
+                                        val_labels_or_path=wiki_val_pairs.target[:20],
                                         source_lang_id=src_lang,
                                         target_lang_id=tgt_lang,
                                         batch_size=1,
-                                        val_evaluators=val_metrics,
+                                        # val_evaluators=val_metrics,
                                         objective_id="Wiki",
                                         # loss_weight=30
                                         )
@@ -115,6 +115,7 @@ seq_bible = Sequence2Sequence(lang_module,
 
 schedule = ParallelSchedule(objectives=[tokenbsc_wiki],
                             extra_eval_objectives=[
+                                seq_wiki,
                                 # seq_opensub,
                                 seq_bible
                             ],

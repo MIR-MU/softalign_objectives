@@ -1,4 +1,5 @@
 import itertools
+import logging
 from typing import Tuple, Iterator, Union, Dict, Optional, List
 
 import torch
@@ -11,6 +12,9 @@ from adaptor.evaluators.generative import BLEU, BERTScore
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.objectives.seq2seq_soft import MinimumRiskTraining
 from adaptor.objectives.seq_bertscr_objectives import BERTScoreObjectiveBase
+
+
+logger = logging.getLogger()
 
 
 class TokenBertScoreObjective(BERTScoreObjectiveBase):
@@ -27,65 +31,75 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                       labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.Tensor:
-       #  inputs = {'input_ids': torch.tensor([[ 5189,    67,     4,  7209,     8,     3,     4,   179,  1320,   272,
-       #      82,   117,    30, 38809,    11,  6229,    42, 26241,    51,    55,
-       #    7675,  2400,    82,   292,  1968,  5770,    82,   117,     3,   194,
-       #      70, 11327,    19,     4, 14054,     8,    51,  2548,    11,     4,
-       #   13921, 21058,    79,    49,    23, 13025,  2034,    11,   176,   928,
-       #    7549,  1949,   742,  3175,   201,     2, 30554, 31538,    45, 26241,
-       #      11,  5929,  7464,  1780,  2414,    73,  7616,    66,    70,   879,
-       #     169,   372,    95,  1015,     5, 15249,    18,    43,   347,  2814,
-       #    8065,    62, 26241,    28,     5,  6631,    11,     5,   444,    51,
-       #    1429,   348,   141,   912,   577,  1320,    13,   336,  7472,    70,
-       #     471,  1154, 10624,  3295,     6,     4,  2548,    11,     4,  7684,
-       #      11,   948,   118,  3679,  1121, 11014,    13,     4,  7684,    11,
-       #     948,   913,  2511,  1250, 22147,     8, 23658,    67,    45, 45238,
-       #   34380,     1,  1383,  3117,     2, 30554, 32297,     0, 62508, 62508,
-       #   62508, 62508, 62508, 62508]], device=self.device), 'attention_mask': torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       #   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       #   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       #   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       #   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       #   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]],
-       # device=self.device), 'labels': torch.tensor([[   55,  2722,     2,  2862,   327,    40, 10721,  8209,    18, 31571,
-       #      23,    16, 22440,  3929, 15102,  2403,   124,    55,   253,   451,
-       #    6745,    23,  1968,   166,  5334,    23,     3,   988,    20,  3376,
-       #       2,  2862, 15099,    37, 23382, 27753,    53, 10227,   137,  1041,
-       #       3,   400,    26,    16,     1,  9534,  5594, 20444,  1149, 48436,
-       #   18555,     1,     2,  7790,  2581,   429,  2428,  3837,   868,  1307,
-       #     556,   327,   318,  4207,    96, 12704,    18, 21914,   163, 26501,
-       #      23,    25,    52,    39,    23, 11985,  1780,  2414,   401,  7616,
-       #    2181,     3, 24523,    23, 20094,    32,   124,  1429,   253,   141,
-       #     912,   577,    56,    98,     3,    41,  1465,    14,    59, 11594,
-       #      37,  3979, 10459,  3921,    52,  5262, 13636, 14900,  3305, 28538,
-       #     951,     5, 30278,   257,    38,  1762,  5262,   237,  2665, 14417,
-       #     265,  2932,   832,  3539,     1,  1383,  3117,     2,  7790,  2670,
-       #     429,     0]], device=self.device), 'decoder_input_ids': torch.tensor([[62508,    55,  2722,     2,  2862,   327,    40, 10721,  8209,    18,
-       #   31571,    23,    16, 22440,  3929, 15102,  2403,   124,    55,   253,
-       #     451,  6745,    23,  1968,   166,  5334,    23,     3,   988,    20,
-       #    3376,     2,  2862, 15099,    37, 23382, 27753,    53, 10227,   137,
-       #    1041,     3,   400,    26,    16,     1,  9534,  5594, 20444,  1149,
-       #   48436, 18555,     1,     2,  7790,  2581,   429,  2428,  3837,   868,
-       #    1307,   556,   327,   318,  4207,    96, 12704,    18, 21914,   163,
-       #   26501,    23,    25,    52,    39,    23, 11985,  1780,  2414,   401,
-       #    7616,  2181,     3, 24523,    23, 20094,    32,   124,  1429,   253,
-       #     141,   912,   577,    56,    98,     3,    41,  1465,    14,    59,
-       #   11594,    37,  3979, 10459,  3921,    52,  5262, 13636, 14900,  3305,
-       #   28538,   951,     5, 30278,   257,    38,  1762,  5262,   237,  2665,
-       #   14417,   265,  2932,   832,  3539,     1,  1383,  3117,     2,  7790,
-       #    2670,   429]], device=self.device), 'oid': 139985041431856}
+        # TODO: remove me
+        # inputs = {'input_ids': torch.tensor([[5189, 67, 4, 7209, 8, 3, 4, 179, 1320, 272,
+        #                                       82, 117, 30, 38809, 11, 6229, 42, 26241, 51, 55,
+        #                                       7675, 2400, 82, 292, 1968, 5770, 82, 117, 3, 194,
+        #                                       70, 11327, 19, 4, 14054, 8, 51, 2548, 11, 4,
+        #                                       13921, 21058, 79, 49, 23, 13025, 2034, 11, 176, 928,
+        #                                       7549, 1949, 742, 3175, 201, 2, 30554, 31538, 45, 26241,
+        #                                       11, 5929, 7464, 1780, 2414, 73, 7616, 66, 70, 879,
+        #                                       169, 372, 95, 1015, 5, 15249, 18, 43, 347, 2814,
+        #                                       8065, 62, 26241, 28, 5, 6631, 11, 5, 444, 51,
+        #                                       1429, 348, 141, 912, 577, 1320, 13, 336, 7472, 70,
+        #                                       471, 1154, 10624, 3295, 6, 4, 2548, 11, 4, 7684,
+        #                                       11, 948, 118, 3679, 1121, 11014, 13, 4, 7684, 11,
+        #                                       948, 913, 2511, 1250, 22147, 8, 23658, 67, 45, 45238,
+        #                                       34380, 1, 1383, 3117, 2, 30554, 32297, 0, 62508, 62508,
+        #                                       62508, 62508, 62508, 62508]], device=self.device),
+        #           'attention_mask': torch.tensor(
+        #               [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]],
+        #               device=self.device), 'labels': torch.tensor([[55, 2722, 2, 2862, 327, 40, 10721, 8209, 18, 31571,
+        #                                                             23, 16, 22440, 3929, 15102, 2403, 124, 55, 253, 451,
+        #                                                             6745, 23, 1968, 166, 5334, 23, 3, 988, 20, 3376,
+        #                                                             2, 2862, 15099, 37, 23382, 27753, 53, 10227, 137,
+        #                                                             1041,
+        #                                                             3, 400, 26, 16, 1, 9534, 5594, 20444, 1149, 48436,
+        #                                                             18555, 1, 2, 7790, 2581, 429, 2428, 3837, 868, 1307,
+        #                                                             556, 327, 318, 4207, 96, 12704, 18, 21914, 163,
+        #                                                             26501,
+        #                                                             23, 25, 52, 39, 23, 11985, 1780, 2414, 401, 7616,
+        #                                                             2181, 3, 24523, 23, 20094, 32, 124, 1429, 253, 141,
+        #                                                             912, 577, 56, 98, 3, 41, 1465, 14, 59, 11594,
+        #                                                             37, 3979, 10459, 3921, 52, 5262, 13636, 14900, 3305,
+        #                                                             28538,
+        #                                                             951, 5, 30278, 257, 38, 1762, 5262, 237, 2665,
+        #                                                             14417,
+        #                                                             265, 2932, 832, 3539, 1, 1383, 3117, 2, 7790, 2670,
+        #                                                             429, 0]], device=self.device),
+        #           'decoder_input_ids': torch.tensor([[62508, 55, 2722, 2, 2862, 327, 40, 10721, 8209, 18,
+        #                                               31571, 23, 16, 22440, 3929, 15102, 2403, 124, 55, 253,
+        #                                               451, 6745, 23, 1968, 166, 5334, 23, 3, 988, 20,
+        #                                               3376, 2, 2862, 15099, 37, 23382, 27753, 53, 10227, 137,
+        #                                               1041, 3, 400, 26, 16, 1, 9534, 5594, 20444, 1149,
+        #                                               48436, 18555, 1, 2, 7790, 2581, 429, 2428, 3837, 868,
+        #                                               1307, 556, 327, 318, 4207, 96, 12704, 18, 21914, 163,
+        #                                               26501, 23, 25, 52, 39, 23, 11985, 1780, 2414, 401,
+        #                                               7616, 2181, 3, 24523, 23, 20094, 32, 124, 1429, 253,
+        #                                               141, 912, 577, 56, 98, 3, 41, 1465, 14, 59,
+        #                                               11594, 37, 3979, 10459, 3921, 52, 5262, 13636, 14900, 3305,
+        #                                               28538, 951, 5, 30278, 257, 38, 1762, 5262, 237, 2665,
+        #                                               14417, 265, 2932, 832, 3539, 1, 1383, 3117, 2, 7790,
+        #                                               2670, 429]], device=self.device), 'oid': 139869886258912}
 
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels")}
 
         loss_inst = torch.nn.CrossEntropyLoss()
 
         outputs = self.compatible_head_model(**input_batch)
-        topk_logits, topk_indices = outputs.logits.topk(10, dim=-1)
+        topk_logits, topk_indices = outputs.logits.topk(self.num_samples, dim=-1)
 
         loss = torch.tensor(0., requires_grad=True, device=self.device)
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
-        for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(), outputs.logits):
+        for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(),
+                                                       outputs.logits):
+            # TODO: maybe remove me:
             for pos in range(len(ref_ids)):
                 # concat the previous tokens, a predicted token, and the succeeding tokens
                 prev_ids = ref_ids[:pos]
@@ -101,47 +115,70 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                     _, refs_embeddings = self._embeddings_for_text([ref])
                     refs_embeddings = refs_embeddings[0]
 
-                refs_embeddings.requires_grad_(True)
-                hyps_embeddings.requires_grad_(True)
+                    # refs_embeddings.requires_grad_(True)
+                    # hyps_embeddings.requires_grad_(True)
 
-                pos_dists = []
-                for hyp_ids, hyp_emb_ids, hyp_emb in zip(hyps_ids, hyps_embedder_ids["input_ids"], hyps_embeddings):
-                    if hyp_ids[pos] in self.tokenizer.all_special_ids:
-                        if pos < len(hyp_ids) - 1:
-                            # we penalize all special tokens except the ones terminating the hyp (to avoid repetition)
-                            # but we use mean dist as penalisation, not to break the following normalisation
-                            special_symbol_dist = torch.hstack(pos_dists).mean().item() if pos_dists \
-                                else hyp_pos_dist.item()
-                        else:
-                            special_symbol_dist = 0.
-                        pos_dists.append(torch.tensor([special_symbol_dist], requires_grad=True, device=self.device))
-                        continue
+                    pos_dists = []
+                    for hyp_ids, hyp_emb_ids, hyp_emb in zip(hyps_ids, hyps_embedder_ids["input_ids"], hyps_embeddings):
+                        if hyp_ids[pos] in self.tokenizer.all_special_ids:
+                            if pos < len(hyp_ids) - 1:
+                                # we penalize all special tokens except the ones terminating the hyp (to avoid repetition)
+                                # but we use mean dist as penalisation, not to break the later normalisation
+                                special_symbol_dist = -1.
+                            else:
+                                special_symbol_dist = 0.
+                            pos_dists.append(torch.tensor([special_symbol_dist], device=self.device))
+                            continue
 
-                    own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
-                                                                                       hyp_ids,
-                                                                                       hyp_emb_ids,
-                                                                                       hyp_emb,
-                                                                                       start_own_pos=pos,
-                                                                                       end_own_pos=pos + 1)
-                    if len(hyp_pos_dist) < 1:
-                        print("Misalignment on pos %s inputs %s" % (pos, inputs))
-                        hyp_pos_dist = torch.tensor(1., requires_grad=True, device=self.device)
+                        own_id_pos, ref_id_pos, hyp_pos_dist = self._distances_for_hyp_ids(refs_embeddings,
+                                                                                           hyp_ids,
+                                                                                           hyp_emb_ids,
+                                                                                           hyp_emb,
+                                                                                           start_own_pos=pos,
+                                                                                           end_own_pos=pos + 1)
+                        if len(hyp_pos_dist) < 1:
+                            logger.warning("Misalignment on pos %s inputs %s." % (pos, inputs))
+                            logger.warning("This is usually due to a generation of a special token within the first %s "
+                                           "positions. Returning loss=1. for this position.", self.num_samples)
+                            hyp_pos_dist = torch.tensor(2., device=self.device)
 
-                    pos_dists.append(hyp_pos_dist)
+                            # TODO: remove me:
+                            # self._distances_for_hyp_ids(refs_embeddings,
+                            #                             hyp_ids,
+                            #                             hyp_emb_ids,
+                            #                             hyp_emb,
+                            #                             start_own_pos=pos,
+                            #                             end_own_pos=pos + 1)
 
-                pos_dists_t = torch.hstack(pos_dists)
-                # scoring of hypotheses variations on a given position:
-                # list(zip(self.tokenizer.batch_decode(current_predicted_ids), (pos_dists_t / pos_dists_t.max()).tolist()))
-                pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
-                pos_targets_adjusted = 1 - pos_dists_scaled
-                assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
-                    "Some computed targets have strange range!"
-                # done: adjusted targets are on different positions
-                pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
-                pos_targets[current_predicted_ids] = pos_targets_adjusted
-                # done: distances after softmax do not vary - all are too small!
-                # TODO: do targets even require_grad? Now they do.
-                targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
+                        pos_dists.append(hyp_pos_dist)
+
+                    pos_dists_t = torch.hstack(pos_dists)
+
+                    if torch.any(pos_dists_t > 1):
+                        # except the sanctioned item
+                        # adjust so-assigned max distances by the other items max, to avoid making "trues" of everything
+                        pos_dists_t[pos_dists_t > 1] = torch.tensor(pos_dists_t[pos_dists_t <= 1].max().item(),
+                                                                    requires_grad=True)
+                    if torch.any(pos_dists_t < 0):
+                        # assign min in-batch value for special tokens in the middle of hypotheses,
+                        # again, in order not to spoil normalisation
+                        pos_dists_t[pos_dists_t < 0] = torch.tensor(pos_dists_t[pos_dists_t >= 0].min().item(),
+                                                                    requires_grad=True)
+
+                    pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
+                    pos_targets_adjusted = 1 - pos_dists_scaled
+                    # scoring of hypotheses variations on a given position:
+                    # list(zip(self.tokenizer.batch_decode(current_predicted_ids), pos_targets_adjusted.tolist()))
+                    assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
+                        "Some computed targets have strange range!"
+                    # done: adjusted targets are on different positions
+                    pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
+                    pos_targets[current_predicted_ids] = pos_targets_adjusted
+                    # done: distances after softmax do not vary - all are too small!
+                    # TODO: do targets even require_grad? Now they do.
+                    targets_per_sample = torch.vstack([targets_per_sample, pos_targets])
+
+                    # here ends no_grad()
 
             sample_loss = loss_inst(logits, targets_per_sample)
             loss = loss + sample_loss
