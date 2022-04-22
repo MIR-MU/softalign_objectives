@@ -175,8 +175,11 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                         pos_dists_t[pos_dists_t < 0] = torch.tensor(valid_dists.min().item(), requires_grad=True)
                     else:
                         pos_dists_t[pos_dists_t < 0] = torch.tensor(0., requires_grad=True)
-
-                pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
+                if pos_dists_t.max() != 0:
+                    pos_dists_scaled = pos_dists_t / pos_dists_t.max(-1).values
+                else:
+                    # otherwise, we have all zeros => presumably, all hypotheses are bad
+                    pos_dists_scaled = pos_dists_t
                 pos_targets_adjusted = 1 - pos_dists_scaled
                 # scoring of hypotheses variations on a given position:
                 # list(zip(self.tokenizer.batch_decode(current_predicted_ids), pos_targets_adjusted.tolist()))
