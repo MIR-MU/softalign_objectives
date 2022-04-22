@@ -180,8 +180,9 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                 pos_targets_adjusted = 1 - pos_dists_scaled
                 # scoring of hypotheses variations on a given position:
                 # list(zip(self.tokenizer.batch_decode(current_predicted_ids), pos_targets_adjusted.tolist()))
-                assert (pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all(), \
-                    "Some computed targets have strange range!"
+                assert ((pos_dists_scaled <= 1).all() and (pos_dists_scaled >= 0).all()), \
+                    "Some computed targets have strange range! \nDistances:%s\nTargets: %s" \
+                    % (pos_dists, pos_dists_scaled)
                 # done: adjusted targets are on different positions
                 pos_targets = torch.zeros_like(lm_logit_outputs[0, 0], device=self.device)
                 pos_targets[current_predicted_ids] = pos_targets_adjusted
