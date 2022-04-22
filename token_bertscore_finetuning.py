@@ -2,7 +2,7 @@ import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 
 from adaptor.adapter import Adapter
-from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
+from adaptor.evaluators.generative import BLEU, BLEU2, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.objectives.token_bertscr_objective import TokenBertScoreObjective
@@ -61,7 +61,8 @@ lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs")
 
 metrics_args = {"additional_sep_char": "▁"}
 
-val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
+val_metrics = [BLEU(**metrics_args, decides_convergence=True), BLEU2(**metrics_args, decides_convergence=True),
+               ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 tokenbsc_wiki = TokenBertScoreObjective(lang_module,
