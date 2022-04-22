@@ -140,6 +140,16 @@ class BLEU(GenerativeEvaluator):
         return corpus_bleu(actual_list, [list(expected_list)]).score
 
 
+class BLEU2(GenerativeEvaluator):
+    """
+    Computes standard corpus-level BLEU score.
+    """
+    smaller_is_better: bool = False
+
+    def evaluate_str(self, expected_list: Sequence[str], actual_list: Sequence[str]) -> float:
+        return corpus_bleu(actual_list, [[ref] for ref in expected_list]).score
+
+
 class ROUGE(GenerativeEvaluator):
     """
     Computes mean ROUGE-L score.
