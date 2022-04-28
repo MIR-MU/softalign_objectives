@@ -5,7 +5,7 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.token_bertscr_objective import TokenBertScoreObjective, DeconTokenBertScoreObjective
+from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset
@@ -25,15 +25,15 @@ src_lang = "en"
 tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
-train_firstn = 100
+train_firstn = None
 val_firstn = 500
 test_firstn = 1000
 
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 wiki_val_pairs = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
-# opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
-# opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
 bible_pairs = OPUSDataset("Bible", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -41,7 +41,7 @@ bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=8e-6,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=1e-7,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          # stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
@@ -90,17 +90,17 @@ seq_wiki = Sequence2Sequence(lang_module,
                              loss_weight=5,
                              objective_id="Wiki")
 
-# seq_opensub = Sequence2Sequence(lang_module,
-#                                 texts_or_path=opensub_pairs.source,
-#                                 labels_or_path=opensub_pairs.target,
-#                                 val_texts_or_path=opensub_val_pairs.source,
-#                                 val_labels_or_path=opensub_val_pairs.target,
-#                                 source_lang_id=src_lang,
-#                                 target_lang_id=tgt_lang,
-#                                 batch_size=30,
-#                                 val_evaluators=val_metrics,
-#                                 share_other_objective_head=tokenbsc_wiki,
-#                                 objective_id="Opensub")
+seq_opensub = Sequence2Sequence(lang_module,
+                                texts_or_path=opensub_pairs.source,
+                                labels_or_path=opensub_pairs.target,
+                                val_texts_or_path=opensub_val_pairs.source,
+                                val_labels_or_path=opensub_val_pairs.target,
+                                source_lang_id=src_lang,
+                                target_lang_id=tgt_lang,
+                                batch_size=30,
+                                val_evaluators=val_metrics,
+                                share_other_objective_head=tokenbsc_wiki,
+                                objective_id="Opensub")
 
 seq_bible = Sequence2Sequence(lang_module,
                               texts_or_path=bible_pairs.source,
@@ -117,7 +117,7 @@ seq_bible = Sequence2Sequence(lang_module,
 schedule = ParallelSchedule(objectives=[tokenbsc_wiki],
                             extra_eval_objectives=[
                                 seq_wiki,
-                                # seq_opensub,
+                                seq_opensub,
                                 seq_bible
                             ],
                             args=training_arguments)
