@@ -161,7 +161,7 @@ class DeconTokenBertScoreObjective(BERTScoreObjectiveBase):
         ref_texts = list(ref_texts)
         # 2. per-batch append to a dict of Marian sentencepieces, recast to CPU
         # TODO: this could be further optimised - index is a single big matrix
-        self.spiece_embeddings = torch.zeros(len(self.tokenizer.decoder.keys()), emb_size)
+        self.spiece_embeddings = torch.zeros(len(self.tokenizer.decoder.keys()), emb_size, device=self.device)
         spiece_counts = [0 for spiece in self.tokenizer.decoder.keys()]
 
         for batch_offset in tqdm(range(0, len(ref_texts), emb_infer_batch_size),
@@ -200,7 +200,7 @@ class DeconTokenBertScoreObjective(BERTScoreObjectiveBase):
 
         # TODO: do we want embeddings as leafs?
         self.spiece_embeddings.requires_grad_(True)
-        self.spiece_counts = torch.tensor(spiece_counts, dtype=torch.int32)
+        self.spiece_counts = torch.tensor(spiece_counts, dtype=torch.int32, device=self.device)
         logger.warning("Indexation done. %s nonzero embeddings, averaged from %s embeddings"
               % (sum(bool(count) for count in spiece_counts), sum(spiece_counts)))
 
