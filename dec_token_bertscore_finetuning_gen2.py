@@ -75,6 +75,7 @@ tokenbsc_wiki = DeconTokenBertScoreObjective(lang_module,
                                              # val_evaluators=val_metrics,
                                              objective_id="Wiki",
                                              remember_last_input=True,
+                                             emb_infer_batch_size=256
                                              )
 
 seq_wiki = Sequence2Sequence(lang_module,
