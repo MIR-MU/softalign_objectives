@@ -1,9 +1,11 @@
-import itertools
+from itertools import count
 import logging
 from typing import Tuple, Iterator, Union, Dict, Optional, List
 
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
+
 from adaptor.adapter import Adapter
 from torch import Tensor
 from transformers import BatchEncoding, PreTrainedTokenizer, BertTokenizer
@@ -31,74 +33,19 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
                       labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 3,
                       ignored_label: int = -100) -> torch.Tensor:
-        # TODO: remove me
-        # inputs = {'input_ids': torch.tensor([[5189, 67, 4, 7209, 8, 3, 4, 179, 1320, 272,
-        #                                       82, 117, 30, 38809, 11, 6229, 42, 26241, 51, 55,
-        #                                       7675, 2400, 82, 292, 1968, 5770, 82, 117, 3, 194,
-        #                                       70, 11327, 19, 4, 14054, 8, 51, 2548, 11, 4,
-        #                                       13921, 21058, 79, 49, 23, 13025, 2034, 11, 176, 928,
-        #                                       7549, 1949, 742, 3175, 201, 2, 30554, 31538, 45, 26241,
-        #                                       11, 5929, 7464, 1780, 2414, 73, 7616, 66, 70, 879,
-        #                                       169, 372, 95, 1015, 5, 15249, 18, 43, 347, 2814,
-        #                                       8065, 62, 26241, 28, 5, 6631, 11, 5, 444, 51,
-        #                                       1429, 348, 141, 912, 577, 1320, 13, 336, 7472, 70,
-        #                                       471, 1154, 10624, 3295, 6, 4, 2548, 11, 4, 7684,
-        #                                       11, 948, 118, 3679, 1121, 11014, 13, 4, 7684, 11,
-        #                                       948, 913, 2511, 1250, 22147, 8, 23658, 67, 45, 45238,
-        #                                       34380, 1, 1383, 3117, 2, 30554, 32297, 0, 62508, 62508,
-        #                                       62508, 62508, 62508, 62508]], device=self.device),
-        #           'attention_mask': torch.tensor(
-        #               [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        #                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]],
-        #               device=self.device), 'labels': torch.tensor([[55, 2722, 2, 2862, 327, 40, 10721, 8209, 18, 31571,
-        #                                                             23, 16, 22440, 3929, 15102, 2403, 124, 55, 253, 451,
-        #                                                             6745, 23, 1968, 166, 5334, 23, 3, 988, 20, 3376,
-        #                                                             2, 2862, 15099, 37, 23382, 27753, 53, 10227, 137,
-        #                                                             1041,
-        #                                                             3, 400, 26, 16, 1, 9534, 5594, 20444, 1149, 48436,
-        #                                                             18555, 1, 2, 7790, 2581, 429, 2428, 3837, 868, 1307,
-        #                                                             556, 327, 318, 4207, 96, 12704, 18, 21914, 163,
-        #                                                             26501,
-        #                                                             23, 25, 52, 39, 23, 11985, 1780, 2414, 401, 7616,
-        #                                                             2181, 3, 24523, 23, 20094, 32, 124, 1429, 253, 141,
-        #                                                             912, 577, 56, 98, 3, 41, 1465, 14, 59, 11594,
-        #                                                             37, 3979, 10459, 3921, 52, 5262, 13636, 14900, 3305,
-        #                                                             28538,
-        #                                                             951, 5, 30278, 257, 38, 1762, 5262, 237, 2665,
-        #                                                             14417,
-        #                                                             265, 2932, 832, 3539, 1, 1383, 3117, 2, 7790, 2670,
-        #                                                             429, 0]], device=self.device),
-        #           'decoder_input_ids': torch.tensor([[62508, 55, 2722, 2, 2862, 327, 40, 10721, 8209, 18,
-        #                                               31571, 23, 16, 22440, 3929, 15102, 2403, 124, 55, 253,
-        #                                               451, 6745, 23, 1968, 166, 5334, 23, 3, 988, 20,
-        #                                               3376, 2, 2862, 15099, 37, 23382, 27753, 53, 10227, 137,
-        #                                               1041, 3, 400, 26, 16, 1, 9534, 5594, 20444, 1149,
-        #                                               48436, 18555, 1, 2, 7790, 2581, 429, 2428, 3837, 868,
-        #                                               1307, 556, 327, 318, 4207, 96, 12704, 18, 21914, 163,
-        #                                               26501, 23, 25, 52, 39, 23, 11985, 1780, 2414, 401,
-        #                                               7616, 2181, 3, 24523, 23, 20094, 32, 124, 1429, 253,
-        #                                               141, 912, 577, 56, 98, 3, 41, 1465, 14, 59,
-        #                                               11594, 37, 3979, 10459, 3921, 52, 5262, 13636, 14900, 3305,
-        #                                               28538, 951, 5, 30278, 257, 38, 1762, 5262, 237, 2665,
-        #                                               14417, 265, 2932, 832, 3539, 1, 1383, 3117, 2, 7790,
-        #                                               2670, 429]], device=self.device), 'oid': 139869886258912}
 
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels")}
 
         loss_inst = torch.nn.CrossEntropyLoss()
 
-        outputs = self.compatible_head_model(**input_batch)
-        topk_logits, topk_indices = outputs.logits.topk(self.num_samples, dim=-1)
+        # outputs = self.compatible_head_model(**input_batch)
+        topk_logits, topk_indices = lm_logit_outputs.topk(self.num_samples, dim=-1)
 
         loss = torch.tensor(0., requires_grad=True, device=self.device)
 
         targets_per_sample = torch.empty(0, lm_logit_outputs.shape[-1], device=self.device)
         for ref_ids, sample_pred_tokens, logits in zip(inputs["labels"].tolist(), topk_indices.tolist(),
-                                                       outputs.logits):
+                                                       lm_logit_outputs):
             with torch.no_grad():
                 ref = self.tokenizer.decode(ref_ids)
                 _, refs_embeddings = self._embeddings_for_text([ref])
@@ -200,88 +147,83 @@ class TokenBertScoreObjective(BERTScoreObjectiveBase):
         # targets = torch.hstack([targets_per_sample, self.label_pad.expand(targets_per_sample.shape[0], -1)])
         # targets_batched = targets.resize_as(topk_logits)
         # done: check that argmax(targets_batched) mostly match the reference_ids
-        return loss / len(outputs.logits)
+        return loss / len(lm_logit_outputs)
 
 
-class TokenBertScoreObjectiveOld(Sequence2Sequence):
-    bertscore_model = "bert-base-multilingual-cased"
-    multinomial: bool
-    sample_trials: int
+class DeconTokenBertScoreObjective(BERTScoreObjectiveBase):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, **kwargs):
         super().__init__(*args, **kwargs)
-        if "lang_model_name_or_path" in kwargs:
-            from transformers import AutoModelWithLMHead
-            self.lang_model = AutoModelWithLMHead.from_pretrained(kwargs["lang_model_name_or_path"])
-        else:
-            from bert_score import get_model
-            from bert_score import model2layers
 
-            self.lang_model = get_model(self.bertscore_model,
-                                        num_layers=model2layers[self.bertscore_model],
-                                        all_layers=False)
-            self.lang_model.to("cuda" if torch.cuda.is_available() else "cpu")
+        # TODO: here goes inference of decontextualized embeddings
+        # 1. per-batch inference of embeddings for all references
+        source_texts, ref_texts = self._per_split_iterators("train")
+        ref_texts = list(ref_texts)
+        # 2. per-batch append to a dict of Marian sentencepieces, recast to CPU
+        # TODO: this could be further optimised - index is a single big matrix
+        self.spiece_embeddings = torch.zeros(len(self.tokenizer.decoder.keys()), emb_size)
+        spiece_counts = [0 for spiece in self.tokenizer.decoder.keys()]
 
-        self.multinomial = kwargs["multinomial"] if "multinomial" in kwargs else False
+        for batch_offset in tqdm(range(0, len(ref_texts), emb_infer_batch_size),
+                                 desc="%s: Inferring embeddings for decontextualization" % self,
+                                 total=len(ref_texts) // emb_infer_batch_size):
+            batch_texts = ref_texts[batch_offset: batch_offset + emb_infer_batch_size]
+            with torch.no_grad():
+                ref_emb_inputs, ref_embs = self._embeddings_for_text(batch_texts)
 
-        # TODO: impact of the sample size?
-        self.sample_trials = kwargs["sample_trials"] if "sample_trials" in kwargs else 16
+            ref_own_inputs = self.tokenizer(batch_texts, return_tensors="pt", truncation="longest_first", padding=True)
 
-    def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor,
-                               loss_fn: torch.nn.Module = torch.nn.MSELoss()) -> torch.FloatTensor:
-        with torch.no_grad():
-            ref_tokens_padded = torch.clone(ref_tokens)
-            ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
-            ref_embeddings = self.lang_model(input_ids=ref_tokens_padded).last_hidden_state
-            # model omits one dimension for batch_size=1
+            for i, item_emb_ids, item_own_ids in zip(count(), ref_emb_inputs.input_ids, ref_own_inputs.input_ids):
+                own_indices, embedder_indices = self._get_own_to_embedder_alignment(item_own_ids, item_emb_ids, 0)
 
-        per_samples_embeddings = []
-        # re-batch, in order to be able to sample more
-        for batch_hyp in hyp_tokens:
-            per_samples_embeddings.append(self.lang_model(input_ids=batch_hyp).last_hidden_state)
+                spiece_batch_ids = ref_own_inputs.input_ids[i, own_indices]  # type: ignore
+                spiece_batch_embeddings = ref_embs[i, embedder_indices]
 
-        per_samples_min_idxs = []
-        for ref_embeddings_one, hyps_embeddings in zip(ref_embeddings, per_samples_embeddings):
-            dists = torch.cdist(ref_embeddings_one, hyps_embeddings, p=1)
-            pairwise_euclid_dists, idx = dists.min(-2)
-            per_samples_min_idxs.append(idx)
+                # 3. averaging
+                for spiece, spiece_emb in zip(spiece_batch_ids, spiece_batch_embeddings):
+                    if not spiece_counts[spiece.item()]:
+                        spiece_counts[spiece.item()] += 1
+                        self.spiece_embeddings[spiece.item()] = spiece_emb
+                    else:
+                        spiece_counts[spiece.item()] += 1
+                        # weighted average: we need the counter already updated here
+                        new_emb_weight = 1 / spiece_counts[spiece.item()]
+                        new_emb_weighted = spiece_emb * new_emb_weight
 
-        loss_agg = torch.tensor(0., requires_grad=True)
-        for batch_i, batch_min_idx in enumerate(per_samples_min_idxs):
-            min_dist_ref_embeddings = ref_embeddings[batch_i, batch_min_idx]
-            hyp_embeddings = per_samples_embeddings[batch_i]
-            loss_agg = loss_agg + loss_fn(hyp_embeddings, min_dist_ref_embeddings)
+                        orig_emb_weight = 1 - new_emb_weight
+                        orig_emb_weighted = self.spiece_embeddings[spiece.item()] * orig_emb_weight
+                        # TODO: are the embeddings not too different?
+                        # assert on first addition:
+                        # torch.vstack([spiece_emb, self.spiece_embeddings[spiece.item()]]).mean(0) ==
+                        # orig_emb_weighted + new_emb_weighted
+                        self.spiece_embeddings[spiece.item()] = orig_emb_weighted + new_emb_weighted
 
-        return loss_agg
+        # TODO: do we want embeddings as leafs?
+        self.spiece_embeddings.requires_grad_(True)
+        self.spiece_counts = torch.tensor(spiece_counts, dtype=torch.int32)
+        logger.warning("Indexation done. %s nonzero embeddings, averaged from %s embeddings"
+              % (sum(bool(count) for count in spiece_counts), sum(spiece_counts)))
 
     def _compute_loss(self,
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
                       lm_logit_outputs: Optional[torch.FloatTensor] = None,
                       labels: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
-        """This loss does the following sequence of steps:
-        1. infer contextualized embeddings (e) for each token of translation hypothesis (e_hyp) and reference (e_ref)
-        2. for each hypothesis token, find the best-matching token from reference, based on their embedding distance.
-           as t_i_ref = argmin(cos(e_hyp, e_t_ref) for t in ref_tokens)
-        2. computes a loss as a sum of these minimal distances:
-           L = sum(cos(e_j_hyp, e_i_ref) for e_j_hyp in e_hyp)
-        """
-        # hypotheses generation
-        output_log_probs = F.log_softmax(lm_logit_outputs, dim=-1)
-        top_k_output_ids = output_log_probs.argsort(descending=True)[..., :self.sample_trials]
+        # 1. Construct a matrix: sample X position X top-k logit index (remember the index separately):
+        # print(lm_logit_outputs.shape)
+        # TODO: we could relatively easily penalize random matches to distant positions -- logits are ordered
+        indexed_tokens = torch.where(self.spiece_counts > 0)[0]
+        indexed_tokens_logits = lm_logit_outputs[..., indexed_tokens]
+        indexed_tokens_embs = self.spiece_embeddings[indexed_tokens]
+        with torch.no_grad():
+            ref_emb_inputs, ref_embs = self._embeddings_for_text(self.tokenizer.batch_decode(labels))
+        ref_embs.requires_grad_(True)
 
-        # we do not care about the actual tokens log-probs now
-        # top_k_output_log_probs = output_log_probs.gather(-1, top_k_output_ids)
+        # 2. Compute distances
+        min_dists_to_reference, min_dist_positions = torch.cdist(indexed_tokens_embs, ref_embs).min(-1)
 
-        # per-score-rank-sequences are passed for embeddings inference - a corruption on lower ranks affects rank
-        # proportionally to its aggregated score
-        per_rank_output_sequences = top_k_output_ids.transpose(-1, -2)
-
-        # # weighting by token probs - we do not do that for now
-        # top_k_output_dists = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
-        # # transpose distances back and weight them by a token-level confidence of the model
-        # log_loss = top_k_output_log_probs + top_k_output_dists.log().transpose(-1, -2)
-        # return log_loss.exp().mean()
-
-        loss_agg = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
-
-        return loss_agg
+        min_dists_to_reference_normed = min_dists_to_reference / min_dists_to_reference.max(-1).values
+        # TODO: min_dist_positions do not respect the ranking of the indexed tokens - maybe embeddings are wrong?
+        # 3. targets = distances of k-first tokens, label smoothing for the remainder (see how)
+        loss = torch.nn.CrossEntropyLoss()
+        loss_val = loss(indexed_tokens_logits, (1 - min_dists_to_reference_normed.expand_as(indexed_tokens_logits)))
+        return loss_val
