@@ -50,6 +50,8 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         Performs a generation for a single input batch. The results are meant to be cached,
         so that other generative evaluators do not perform a generation repeatedly.
         """
+        print("input_ids device: %s, model device: %s" % (input_ids.device, model.device))
+
         if isinstance(tokenizer, MBart50Tokenizer):
             # Forced BOS token for MBart50
             return model.generate(input_ids=input_ids, attention_mask=attention_mask,
