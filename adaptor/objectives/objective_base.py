@@ -246,7 +246,8 @@ class Objective(abc.ABC):
         self.loss_history[split].append(loss.item())
         self.num_steps += 1
 
-        self.progressbar[split].set_postfix(refresh=False, split=split, loss=loss.item(), epoch=self.epoch)
+        self.progressbar[split].set_postfix(refresh=False, split=split,
+                                            loss=(loss * self.loss_weight).item(), epoch=self.epoch)
         self.progressbar[split].update(1)
 
         return loss * self.loss_weight

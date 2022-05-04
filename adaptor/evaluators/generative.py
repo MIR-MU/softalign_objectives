@@ -102,7 +102,10 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
             with torch.no_grad():
                 if self.use_generate:
                     # TODO: remove me: temporary check
-                    assert model.device == self.device
+                    assert model.device == self.device, "Model device: %s, sample_device: %s, expected device: %s" \
+                                                        % (model.device,
+                                                           next(v.device == self.device for v in batch.values()),
+                                                           self.device)
                     assert all(v.device == self.device for v in batch.values())
 
                     output_tokens = self._autoregressive_predict(model, batch, tokenizer)
