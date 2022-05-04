@@ -337,6 +337,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
         losses = []
         # batch_distances = []
         # batch_scores = []
+        expected_distances = torch.zeros(self.compatible_head_model.config.max_length, device=self.device)
+
         try:
             for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(inputs["labels"],
                                                                               self.do_sample(input_batch, num_samples)):
@@ -380,12 +382,14 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                     # batch_distances.append(distances_padded)
                     # batch_scores.append(scores_padded)
 
-                    losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+                    # losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+                    losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
+                    # losses.append(torch.nn.L1Loss()(distances_padded * (1 - scores_padded)))
         except RuntimeError as e:
             logger.error("%s: Skipping input and returning zero loss" % e)
-            logger.error("%s: Saving corrupted model to `runtime_error_model`")
-            self.compatible_head_model.save_pretrained('runtime_error_model')
-            self.tokenizer.save_pretrained('runtime_error_model')
+            # logger.error("%s: Saving corrupted model to `runtime_error_model`")
+            # self.compatible_head_model.save_pretrained('runtime_error_model')
+            # self.tokenizer.save_pretrained('runtime_error_model')
 
             return torch.tensor(0., requires_grad=True, dtype=torch.float)
         # if not losses:

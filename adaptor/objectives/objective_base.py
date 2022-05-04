@@ -74,6 +74,10 @@ class Objective(abc.ABC):
         :param loss_weight: A scalar of the loss of this objective in multi-objective training.
         :param max_samples_per_log: Maximum number batches that this objective will compute for logging.
         :param max_samples_per_eval_log: Maximum number batches that this objective will compute for evaluation logging.
+        :param remember_last_input: Debugging feature: whether the objective should remember the last input
+        to its compatible model. Useful for debugging a development of the new objective;
+        If the training fails (in the interactive - `-i` mode), the last, possibly error input can be retrieved
+        from `this_objective.last_input`.
         """
 
         self.batch_size = batch_size
@@ -232,11 +236,11 @@ class Objective(abc.ABC):
         """
         Shared wrapper of objective-specific loss computation. Additionally, it registers model outputs, and labels
         for logging and updates this objective progress bar.
-        :param inputs:
-        :param logit_outputs:
-        :param labels:
-        :param split:
-        :return:
+        :param inputs: Input encoding corresponding to given `logit_outputs` and `labels`.
+        :param logit_outputs: Raw output of this objective's head.
+        :param labels: Expected true labels of this objective.
+        :param split: Dataset split. `train` or `eval`.
+        :return: a single-item torch tensor with registered grad_fn.
         """
         loss = self._compute_loss(inputs, logit_outputs, labels)
         self.loss_history[split].append(loss.item())
@@ -424,6 +428,7 @@ class UnsupervisedObjective(Objective, abc.ABC):
 
 
 class SupervisedObjective(UnsupervisedObjective, abc.ABC):
+
     labels_path: Optional[str] = None
     labels: Optional[List[str]] = None
 
