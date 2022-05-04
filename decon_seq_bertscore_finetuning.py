@@ -31,8 +31,8 @@ test_firstn = 1000
 wiki_pairs = OPUSDataset("wikimedia", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 wiki_val_pairs = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
-# opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
-# opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+opensub_pairs = OPUSDataset("OpenSubtitles", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+opensub_val_pairs = OPUSDataset("OpenSubtitles", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
 
 bible_pairs = OPUSDataset("Bible", "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 bible_val_pairs = OPUSDataset("Bible", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -81,36 +81,27 @@ tokenbsc_wiki = DeconSeqBertScoreObjective(lang_module,
 seq_wiki = Sequence2Sequence(lang_module,
                              texts_or_path=wiki_pairs.source,
                              labels_or_path=wiki_pairs.target,
+                             val_texts_or_path=wiki_val_pairs.source,
+                             val_labels_or_path=wiki_val_pairs.target,
                              source_lang_id=src_lang,
                              target_lang_id=tgt_lang,
                              batch_size=4,
                              val_evaluators=val_metrics,
                              share_other_objective_head=tokenbsc_wiki,
+                             loss_weight=25,
                              objective_id="Wiki")
 
-seq_wiki_eval = Sequence2Sequence(lang_module,
-                                  texts_or_path=wiki_pairs.source,
-                                  labels_or_path=wiki_pairs.target,
-                                  val_texts_or_path=wiki_val_pairs.source,
-                                  val_labels_or_path=wiki_val_pairs.target,
-                                  source_lang_id=src_lang,
-                                  target_lang_id=tgt_lang,
-                                  batch_size=32,
-                                  val_evaluators=val_metrics,
-                                  share_other_objective_head=tokenbsc_wiki,
-                                  objective_id="Wiki")
-
-# seq_opensub = Sequence2Sequence(lang_module,
-#                                 texts_or_path=opensub_pairs.source,
-#                                 labels_or_path=opensub_pairs.target,
-#                                 val_texts_or_path=opensub_val_pairs.source,
-#                                 val_labels_or_path=opensub_val_pairs.target,
-#                                 source_lang_id=src_lang,
-#                                 target_lang_id=tgt_lang,
-#                                 batch_size=32,
-#                                 val_evaluators=val_metrics,
-#                                 share_other_objective_head=tokenbsc_wiki,
-#                                 objective_id="Opensub")
+seq_opensub = Sequence2Sequence(lang_module,
+                                texts_or_path=opensub_pairs.source,
+                                labels_or_path=opensub_pairs.target,
+                                val_texts_or_path=opensub_val_pairs.source,
+                                val_labels_or_path=opensub_val_pairs.target,
+                                source_lang_id=src_lang,
+                                target_lang_id=tgt_lang,
+                                batch_size=32,
+                                val_evaluators=val_metrics,
+                                share_other_objective_head=tokenbsc_wiki,
+                                objective_id="Opensub")
 
 seq_bible = Sequence2Sequence(lang_module,
                               texts_or_path=bible_pairs.source,
@@ -126,8 +117,7 @@ seq_bible = Sequence2Sequence(lang_module,
 
 schedule = ParallelSchedule(objectives=[seq_wiki, tokenbsc_wiki],
                             extra_eval_objectives=[
-                                seq_wiki_eval,
-                                # seq_opensub,
+                                seq_opensub,
                                 seq_bible
                             ],
                             args=training_arguments)
