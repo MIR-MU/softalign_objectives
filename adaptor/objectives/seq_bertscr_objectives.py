@@ -532,6 +532,8 @@ class SeqBertScoreRandom(SeqBertScoreObjective):
 
         losses = []
 
+        expected_distances = torch.zeros(self.compatible_head_model.config.max_length, device=self.device)
+
         try:
             translations_sampler = self.do_sample(input_batch, num_samples)
 
@@ -574,9 +576,10 @@ class SeqBertScoreRandom(SeqBertScoreObjective):
 
                     distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
-                    scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
+                    # scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
-                    losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+                    # losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+                    losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
         except RuntimeError as e:
             logger.error("%s: Skipping input and returning zero loss" % e)
             logger.error("%s: Saving corrupted model to `runtime_error_model`")
