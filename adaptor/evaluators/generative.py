@@ -38,7 +38,7 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         self.progress_bar = progress_bar
 
         # TODO: remove me: temporary check
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        # self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     @staticmethod
     @lru_cache(maxsize=10000)
@@ -102,11 +102,10 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
             with torch.no_grad():
                 if self.use_generate:
                     # TODO: remove me: temporary check
-                    assert model.device == self.device, "Model device: %s, sample_device: %s, expected device: %s" \
-                                                        % (model.device,
-                                                           next(v.device == self.device for v in batch.values()),
-                                                           self.device)
-                    assert all(v.device == self.device for v in batch.values())
+                    assert model.device == next(v.device for v in batch.values()), \
+                        "Model device: %s, sample_device: %s" % (model.device,
+                                                                 next(v.device for v in batch.values()))
+                    assert all(v.device == model.device for v in batch.values())
 
                     output_tokens = self._autoregressive_predict(model, batch, tokenizer)
                 else:

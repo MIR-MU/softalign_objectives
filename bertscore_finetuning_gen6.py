@@ -75,8 +75,8 @@ tokenbsc_wiki = SeqBertScoreObjective(lang_module,
                                       batch_size=1,
                                       val_evaluators=val_metrics,
                                       objective_id="Wiki",
-                                      loss_weight=100
-                                      )
+                                      loss_weight=100,
+                                      remember_last_input=True)
 
 seq_wiki = Sequence2Sequence(lang_module,
                              texts_or_path=wiki_pairs.source,
