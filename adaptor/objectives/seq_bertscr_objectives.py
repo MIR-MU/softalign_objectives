@@ -444,6 +444,8 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                     # batch_distances.append(distances_padded)
                     # batch_scores.append(scores_padded)
 
+                    # TODO: reconsider L1Loss:
+                    # https://pytorch.org/docs/stable/nn.html#loss-functions
                     # losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
                     losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
                     # losses.append(torch.nn.L1Loss()(distances_padded * (1 - scores_padded)))
@@ -478,7 +480,7 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
         # TODO: here goes inference of decontextualized embeddings
         # 1. per-batch inference of embeddings for all references
         source_texts, ref_texts = self._per_split_iterators("train")
-        ref_texts = list(ref_texts)[:100]
+        ref_texts = list(ref_texts)
 
         spiece_counts, self.spiece_embeddings = self.decon_spiece_embeddings_from_texts(ref_texts,
                                                                                         emb_infer_batch_size,
