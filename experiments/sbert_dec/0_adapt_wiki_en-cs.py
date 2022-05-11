@@ -92,8 +92,8 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
-    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_datasets.append(test_dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
