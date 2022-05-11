@@ -16,10 +16,10 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "sbert_decontextualised"
+experiment_id = "sbert_decontextualised"  # TODO set this
 
-src_lang = "en"
-tgt_lang = "cs"
+src_lang = "en"  # TODO set this
+tgt_lang = "cs"  # TODO set this
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None
@@ -27,7 +27,7 @@ val_firstn = 500
 test_firstn = 1000
 
 
-train_dataset_id = "wikimedia"
+train_dataset_id = "wikimedia"  # TODO set this
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -60,7 +60,7 @@ metrics_args = {"additional_sep_char": "▁"}
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-token_distance_wiki = DeconTokenBertScoreObjective(lang_module,
+token_distance_wiki = DeconTokenBertScoreObjective(lang_module,  # TODO set this
                                                    texts_or_path=train_dataset.source,
                                                    labels_or_path=train_dataset.target,
                                                    val_texts_or_path=val_dataset.source[:20],
@@ -68,7 +68,7 @@ token_distance_wiki = DeconTokenBertScoreObjective(lang_module,
                                                    source_lang_id=src_lang,
                                                    target_lang_id=tgt_lang,
                                                    batch_size=1,
-                                                   objective_id="Wiki",
+                                                   objective_id=train_dataset_id,
                                                    remember_last_input=True,
                                                    emb_infer_batch_size=256)
 
@@ -82,9 +82,9 @@ mle_wiki = Sequence2Sequence(lang_module,
                              target_lang_id=tgt_lang,
                              batch_size=2,
                              val_evaluators=val_metrics,
-                             share_other_objective_head=token_distance_wiki,
+                             share_other_objective_head=token_distance_wiki,  # TODO check this
                              loss_weight=25,
-                             objective_id="Wiki")
+                             objective_id=train_dataset_id)
 
 training_objectives = [token_distance_wiki, mle_wiki]
 
@@ -92,20 +92,21 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
-    dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
-    test_datasets.append(dataset)
+    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+    test_dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    test_datasets.append(test_dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
-                                           texts_or_path=[],
-                                           labels_or_path=[],
-                                           val_texts_or_path=dataset.source,
-                                           val_labels_or_path=dataset.target,
+                                           texts_or_path=train_dataset.source,
+                                           labels_or_path=train_dataset.source,
+                                           val_texts_or_path=test_dataset.source,
+                                           val_labels_or_path=test_dataset.target,
                                            source_lang_id=src_lang,
                                            target_lang_id=tgt_lang,
                                            batch_size=30,
                                            val_evaluators=val_metrics,
-                                           share_other_objective_head=token_distance_wiki,
-                                           objective_id="%s-%s" % (dataset.split, dataset.domain_label))
+                                           share_other_objective_head=token_distance_wiki,  # TODO check this
+                                           objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
 
     test_objectives.append(new_eval_objective)
 
