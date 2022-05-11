@@ -83,8 +83,8 @@ for dataset_id in test_dataset_ids:
     test_datasets.append(dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
-                                           texts_or_path=[],
-                                           labels_or_path=[],
+                                           texts_or_path=dataset.source,
+                                           labels_or_path=dataset.source,
                                            val_texts_or_path=dataset.source,
                                            val_labels_or_path=dataset.target,
                                            source_lang_id=src_lang,
