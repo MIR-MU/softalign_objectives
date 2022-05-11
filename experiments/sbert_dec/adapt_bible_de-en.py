@@ -59,31 +59,10 @@ metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-test_datasets = []
-test_objectives = []
-
-for dataset_id in test_dataset_ids:
-    dataset = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
-    test_datasets.append(dataset)
-
-    new_eval_objective = Sequence2Sequence(lang_module,
-                                           texts_or_path=[],
-                                           labels_or_path=[],
-                                           val_texts_or_path=dataset.source,
-                                           val_labels_or_path=dataset.target,
-                                           source_lang_id=src_lang,
-                                           target_lang_id=tgt_lang,
-                                           batch_size=30,
-                                           val_evaluators=val_metrics,
-                                           share_other_objective_head=token_distance_wiki,
-                                           objective_id="%s-%s" % (dataset.split, dataset.domain_label))
-
-    test_objectives.append(new_eval_objective)
-
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 token_distance_wiki = DeconTokenBertScoreObjective(lang_module,
-                                                   texts_or_path=train_dataset.source,
-                                                   labels_or_path=train_dataset.target,
+                                                   texts_or_path=train_dataset.source[:1000],
+                                                   labels_or_path=train_dataset.target[:1000],
                                                    val_texts_or_path=val_dataset.source[:20],
                                                    val_labels_or_path=val_dataset.target[:20],
                                                    source_lang_id=src_lang,
@@ -109,6 +88,26 @@ mle_wiki = Sequence2Sequence(lang_module,
 
 training_objectives = [token_distance_wiki, mle_wiki]
 
+test_datasets = []
+test_objectives = []
+
+for dataset_id in test_dataset_ids:
+    dataset = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    test_datasets.append(dataset)
+
+    new_eval_objective = Sequence2Sequence(lang_module,
+                                           texts_or_path=[],
+                                           labels_or_path=[],
+                                           val_texts_or_path=dataset.source,
+                                           val_labels_or_path=dataset.target,
+                                           source_lang_id=src_lang,
+                                           target_lang_id=tgt_lang,
+                                           batch_size=30,
+                                           val_evaluators=val_metrics,
+                                           share_other_objective_head=token_distance_wiki,
+                                           objective_id="%s-%s" % (dataset.split, dataset.domain_label))
+
+    test_objectives.append(new_eval_objective)
 
 schedule = ParallelSchedule(objectives=training_objectives,
                             extra_eval_objectives=test_objectives,
