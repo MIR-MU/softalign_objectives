@@ -93,6 +93,10 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
+    if dataset_id == train_dataset_id:
+        # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
+        continue
+
     train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
     test_datasets.append(test_dataset)
