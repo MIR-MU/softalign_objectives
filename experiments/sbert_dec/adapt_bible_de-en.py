@@ -31,8 +31,9 @@ train_dataset_id = "Bible"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
-train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+# reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
@@ -92,20 +93,21 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
-    dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
-    test_datasets.append(dataset)
+    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
+    test_dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    test_datasets.append(test_dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
-                                           texts_or_path=[],
-                                           labels_or_path=[],
-                                           val_texts_or_path=dataset.source,
-                                           val_labels_or_path=dataset.target,
+                                           texts_or_path=train_dataset.source,
+                                           labels_or_path=train_dataset.source,
+                                           val_texts_or_path=test_dataset.source,
+                                           val_labels_or_path=test_dataset.target,
                                            source_lang_id=src_lang,
                                            target_lang_id=tgt_lang,
                                            batch_size=30,
                                            val_evaluators=val_metrics,
                                            share_other_objective_head=train_obj,
-                                           objective_id="%s-%s" % (dataset.split, dataset.domain_label))
+                                           objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
 
     test_objectives.append(new_eval_objective)
 
