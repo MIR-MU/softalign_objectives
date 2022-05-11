@@ -92,7 +92,7 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
-    dataset = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
     test_datasets.append(dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
