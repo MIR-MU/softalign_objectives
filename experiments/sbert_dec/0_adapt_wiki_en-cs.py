@@ -45,8 +45,8 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          warmup_steps=1000,
                                          max_steps=100000,
                                          gradient_accumulation_steps=20,
-                                         logging_steps=5,
-                                         eval_steps=200,
+                                         logging_steps=50,
+                                         eval_steps=500,
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -92,7 +92,7 @@ test_datasets = []
 test_objectives = []
 
 for dataset_id in test_dataset_ids:
-    dataset = OPUSDataset("wikimedia", "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
     test_datasets.append(dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
