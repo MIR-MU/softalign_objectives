@@ -8,10 +8,12 @@ from examples.data_utils import DataSource
 # see a list for your language pair in https://opus.nlpl.eu/
 
 OPUS_RESOURCES_URLS = {
-    "WikiMatrix": "https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/%s-%s.txt.zip",
+    # "WikiMatrix": "https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/%s-%s.txt.zip",
     "wikimedia": "https://object.pouta.csc.fi/OPUS-wikimedia/v20210402/moses/%s-%s.txt.zip",
     "OpenSubtitles": "https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/%s-%s.txt.zip",
-    "Bible": "https://object.pouta.csc.fi/OPUS-bible-uedin/v1/moses/%s-%s.txt.zip"
+    "Bible": "https://object.pouta.csc.fi/OPUS-bible-uedin/v1/moses/%s-%s.txt.zip",
+    "EMEA": "https://opus.nlpl.eu/download.php?f=EMEA/v3/moses/%s-%s.txt.zip",
+    "DGT": "https://opus.nlpl.eu/download.php?f=DGT/v2019/moses/%s-%s.txt.zip",
 }
 
 # asserting the set, we make sure that no duplicates are loaded among the resources
