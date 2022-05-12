@@ -108,7 +108,7 @@ for dataset_id in test_dataset_ids:
                                            val_labels_or_path=test_dataset.target,
                                            source_lang_id=src_lang,
                                            target_lang_id=tgt_lang,
-                                           batch_size=30,
+                                           batch_size=10,
                                            val_evaluators=val_metrics,
                                            share_other_objective_head=train_obj,
                                            objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
