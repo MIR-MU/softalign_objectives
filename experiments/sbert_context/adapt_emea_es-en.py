@@ -5,6 +5,8 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
+from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective
+from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
@@ -15,16 +17,15 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "seq_emea"
+experiment_id = "sbert"
 
-src_lang = "mt"
+src_lang = "es"
 tgt_lang = "en"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None
 val_firstn = 500
 test_firstn = 1000
-
 
 train_dataset_id = "EMEA"
 # we test on all the domains in the constructed collection
@@ -37,14 +38,14 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-5,  # we set LR=2e-4 for pre-training experiments
-                                         # stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
-                                         stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
+                                         learning_rate=2e-7,  # we set LR=2e-4 for pre-training experiments
+                                         stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
+                                         stopping_patience=10,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
-                                         max_steps=400000,
-                                         gradient_accumulation_steps=2,
+                                         max_steps=100000,
+                                         gradient_accumulation_steps=20,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -60,6 +61,17 @@ metrics_args = {"additional_sep_char": "▁"}
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
+train_obj = SeqBertScoreObjective(lang_module,
+                                  texts_or_path=train_dataset.source,
+                                  labels_or_path=train_dataset.target,
+                                  val_texts_or_path=val_dataset.source[:20],
+                                  val_labels_or_path=val_dataset.target[:20],
+                                  source_lang_id=src_lang,
+                                  target_lang_id=tgt_lang,
+                                  batch_size=1,
+                                  objective_id=train_dataset_id,
+                                  loss_weight=100,
+                                  remember_last_input=True)
 
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
@@ -69,11 +81,13 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=30,
+                              batch_size=2,
                               val_evaluators=val_metrics,
+                              share_other_objective_head=train_obj,
+                              loss_weight=25,
                               objective_id=train_dataset_id)
 
-training_objectives = [train_mle]
+training_objectives = [train_obj, train_mle]
 
 test_datasets = []
 test_objectives = []
@@ -96,7 +110,7 @@ for dataset_id in test_dataset_ids:
                                            target_lang_id=tgt_lang,
                                            batch_size=10,
                                            val_evaluators=val_metrics,
-                                           share_other_objective_head=train_mle,
+                                           share_other_objective_head=train_obj,
                                            objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
 
     test_objectives.append(new_eval_objective)
@@ -116,7 +130,7 @@ print("Starting evaluation")
 
 test_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-translator_model = lang_module.trainable_models[str(id(train_mle))]
+translator_model = lang_module.trainable_models[str(id(train_obj))]
 
 for test_dataset in test_datasets:
 
