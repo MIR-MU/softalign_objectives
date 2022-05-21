@@ -15,7 +15,7 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "seq"
+experiment_id = "seq_dgt"
 
 src_lang = "de"
 tgt_lang = "en"
