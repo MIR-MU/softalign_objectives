@@ -6,7 +6,6 @@ from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.objectives.seq_bertscr_objectives import DeconSeqBertScoreObjective
-from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
@@ -17,7 +16,6 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "dec_sbert_emea"
 
 src_lang = "en"
 tgt_lang = "uk"
@@ -28,8 +26,10 @@ val_firstn = 500
 test_firstn = 1000
 
 train_dataset_id = "OpenSubtitles"
+experiment_id = "dec_sbert_%s" % train_dataset_id
 # we test on all the domains in the constructed collection
-test_dataset_ids = OPUS_RESOURCES_URLS.keys()
+# for Unrainian, we don't have EMEA and DGT datasets, so we skip them from evaluation
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -51,7 +51,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
                                          also_log_converged_objectives=True,
-                                         stopping_patience=50)
+                                         stopping_patience=20)
 
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))

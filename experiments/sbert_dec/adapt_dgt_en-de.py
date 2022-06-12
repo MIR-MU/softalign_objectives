@@ -38,7 +38,7 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-6,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-7,
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
@@ -51,7 +51,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
                                          also_log_converged_objectives=True,
-                                         stopping_patience=50)
+                                         stopping_patience=20)
 
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
