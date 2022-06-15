@@ -474,8 +474,9 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
 class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
 
-    def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, **kwargs):
+    def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, num_samples: int = 3, **kwargs):
         super().__init__(*args, **kwargs)
+        self.num_samples = num_samples
 
         # TODO: here goes inference of decontextualized embeddings
         # 1. per-batch inference of embeddings for all references
@@ -495,7 +496,6 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
                       lm_logit_outputs: Optional[torch.FloatTensor] = None,
                       labels: Optional[torch.LongTensor] = None,
-                      num_samples: int = 10,
                       ignored_label: int = -100) -> torch.Tensor:
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
@@ -507,7 +507,7 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
         losses = []
         loss_inst = torch.nn.CrossEntropyLoss()
 
-        translations_sampler = self.do_sample(input_batch, num_samples, collect_logits=True)
+        translations_sampler = self.do_sample(input_batch, self.num_samples, collect_logits=True)
 
         for per_sample_ref_embs, (hyps_own_ids, token_scores, hyps_scores, hyps_logits) in zip(ref_embs,
                                                                                                translations_sampler):
