@@ -28,7 +28,7 @@ test_firstn = 1000
 train_dataset_id = "OpenSubtitles"
 experiment_id = "dec_sbert_%s" % train_dataset_id
 # we test on all the domains in the constructed collection
-# for Unrainian, we don't have EMEA and DGT datasets, so we skip them from evaluation
+# for Ukrainian, we don't have EMEA and DGT datasets, so we skip them from evaluation
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
@@ -38,7 +38,7 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-6,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-6,
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
