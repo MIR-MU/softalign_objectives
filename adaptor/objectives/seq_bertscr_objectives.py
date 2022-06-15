@@ -474,7 +474,7 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
 class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
 
-    def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, num_samples: int = 3, **kwargs):
+    def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, num_samples: int = 10, **kwargs):
         super().__init__(*args, **kwargs)
         self.num_samples = num_samples
 
