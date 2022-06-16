@@ -26,7 +26,7 @@ val_firstn = 500
 test_firstn = 1000
 
 train_dataset_id = "OpenSubtitles"
-experiment_id = "dec_sbert_%s" % train_dataset_id
+experiment_id = "dec_tbert_%s" % train_dataset_id
 # we test on all the domains in the constructed collection
 # for Unrainian, we don't have EMEA and DGT datasets, so we skip them from evaluation
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
