@@ -17,17 +17,17 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "sbert"
+experiment_id = "sbert_decontextualised"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "Opensub"
+train_dataset_id = "wikimedia"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -40,12 +40,12 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          learning_rate=2e-7,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
-                                         stopping_patience=10,
+                                         stopping_patience=20,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=100000,
-                                         gradient_accumulation_steps=20,
+                                         gradient_accumulation_steps=10,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -81,7 +81,7 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=2,
+                              batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=train_obj,
                               loss_weight=25,

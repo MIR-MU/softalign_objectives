@@ -5,7 +5,7 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective
+from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective, DeconSeqBertScoreObjectiveDistLoss
 from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
@@ -40,12 +40,12 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          learning_rate=2e-7,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
-                                         stopping_patience=10,
+                                         stopping_patience=20,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=100000,
-                                         gradient_accumulation_steps=20,
+                                         gradient_accumulation_steps=10,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -61,17 +61,17 @@ metrics_args = {"additional_sep_char": "▁"}
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-train_obj = SeqBertScoreObjective(lang_module,
-                                  texts_or_path=train_dataset.source,
-                                  labels_or_path=train_dataset.target,
-                                  val_texts_or_path=val_dataset.source[:20],
-                                  val_labels_or_path=val_dataset.target[:20],
-                                  source_lang_id=src_lang,
-                                  target_lang_id=tgt_lang,
-                                  batch_size=1,
-                                  objective_id=train_dataset_id,
-                                  loss_weight=100,
-                                  remember_last_input=True)
+train_obj = DeconSeqBertScoreObjectiveDistLoss(lang_module,
+                                               texts_or_path=train_dataset.source,
+                                               labels_or_path=train_dataset.target,
+                                               val_texts_or_path=val_dataset.source[:20],
+                                               val_labels_or_path=val_dataset.target[:20],
+                                               source_lang_id=src_lang,
+                                               target_lang_id=tgt_lang,
+                                               batch_size=1,
+                                               objective_id=train_dataset_id,
+                                               loss_weight=100,
+                                               remember_last_input=True)
 
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
@@ -81,7 +81,7 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=2,
+                              batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=train_obj,
                               loss_weight=25,
@@ -97,8 +97,8 @@ for dataset_id in test_dataset_ids:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
         continue
 
-    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_dataset = OPUSDataset(dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=test_firstn)
+    train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_datasets.append(test_dataset)
 
     new_eval_objective = Sequence2Sequence(lang_module,
