@@ -522,6 +522,38 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
         return torch.vstack(losses).mean()
 
 
+class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
+
+    def _compute_loss(self,
+                      inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
+                      lm_logit_outputs: Optional[torch.FloatTensor] = None,
+                      labels: Optional[torch.LongTensor] = None,
+                      ignored_label: int = -100) -> torch.Tensor:
+        input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
+
+        with torch.no_grad():
+            ref_emb_inputs, ref_embs = self._embeddings_for_text(self.tokenizer.batch_decode(labels))
+        ref_embs.requires_grad_(True)
+
+        indexed_tokens = torch.where(self.spiece_counts > 0)[0]
+        losses = []
+        loss_inst = torch.nn.L1Loss()
+
+        translations_sampler = self.do_sample(input_batch, self.num_samples, collect_logits=True)
+
+        for per_sample_ref_embs, (hyps_own_ids, token_scores, hyps_scores, hyps_logits) in zip(ref_embs,
+                                                                                               translations_sampler):
+            indexed_hyps_logits = hyps_logits[..., indexed_tokens]
+            indexed_tokens_embs = self.spiece_embeddings[indexed_tokens]
+            min_dists_to_ref, min_dist_positions = torch.cdist(indexed_tokens_embs, per_sample_ref_embs).min(-1)
+            min_dists_to_ref_normed = min_dists_to_ref / min_dists_to_ref.max(-1).values
+
+            loss_val = loss_inst(indexed_hyps_logits, (1 - min_dists_to_ref_normed.expand_as(indexed_hyps_logits)))
+            losses.append(loss_val)
+
+        return torch.vstack(losses).mean()
+
+
 class SeqBertScoreRandom(SeqBertScoreObjective):
 
     def _compute_loss(self,
