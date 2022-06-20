@@ -69,7 +69,7 @@ train_obj = SeqBertScoreObjective(lang_module,
                                   target_lang_id=tgt_lang,
                                   batch_size=1,
                                   objective_id=train_dataset_id,
-                                  loss_weight=100,
+                                  loss_weight=250,
                                   remember_last_input=True)
 
 # validations are also computed by the training MLE objective
@@ -83,7 +83,7 @@ train_mle = Sequence2Sequence(lang_module,
                               batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=train_obj,
-                              loss_weight=25,
+                              loss_weight=1,
                               objective_id=train_dataset_id)
 
 training_objectives = [train_obj, train_mle]
