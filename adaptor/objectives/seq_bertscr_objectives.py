@@ -296,7 +296,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         # here, also alignments to the reference can be accessed (.min(-1).indices)
         emb_distances = torch.cdist(hyp_ids_embeddings, ref_embeddings)
         # norm by the size of the reference -> this should make the distances of different references comparable
-        hyp_ids_distances_normed = emb_distances / emb_distances.sum()
+        hyp_ids_distances_normed = emb_distances / emb_distances.max()
         hyp_ids_distances_min = hyp_ids_distances_normed.min(-1)
 
         # alignment to the reference check:
@@ -439,15 +439,15 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
 
                     distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
-                    # scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
+                    scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
                     # batch_distances.append(distances_padded)
                     # batch_scores.append(scores_padded)
 
                     # TODO: reconsider L1Loss:
                     # https://pytorch.org/docs/stable/nn.html#loss-functions
-                    # losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
-                    losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
+                    losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
+                    # losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
                     # losses.append(torch.nn.L1Loss()(distances_padded * (1 - scores_padded)))
         except RuntimeError as e:
             logger.error("%s: Skipping input and returning zero loss" % e)
@@ -548,7 +548,8 @@ class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
             min_dists_to_ref, min_dist_positions = torch.cdist(indexed_tokens_embs, per_sample_ref_embs).min(-1)
             min_dists_to_ref_normed = min_dists_to_ref / min_dists_to_ref.max(-1).values
 
-            loss_val = loss_inst(indexed_hyps_logits, (1 - min_dists_to_ref_normed.expand_as(indexed_hyps_logits)))
+            loss_val = loss_inst(indexed_hyps_logits.exp(),
+                                 (1 - min_dists_to_ref_normed.expand_as(indexed_hyps_logits)))
             losses.append(loss_val)
 
         return torch.vstack(losses).mean()
@@ -579,8 +580,8 @@ class SeqBertScoreRandom(SeqBertScoreObjective):
 
                 # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
                 with torch.no_grad():
-                    _, ref_embeddings = self._embeddings_for_text([ref_text])
-                    ref_embeddings = ref_embeddings[0]
+                    # _, ref_embeddings = self._embeddings_for_text([ref_text])
+                    # ref_embeddings = ref_embeddings[0]
                     ref_embeddings = torch.rand_like(ref_embeddings)
 
                     hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
