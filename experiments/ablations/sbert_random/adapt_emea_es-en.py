@@ -37,7 +37,7 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-7,
+                                         learning_rate=2e-6,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_patience=20,
                                          do_train=True,
