@@ -5,8 +5,7 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.seq_bertscr_objectives import DeconSeqBertScoreObjective
-from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
+from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
