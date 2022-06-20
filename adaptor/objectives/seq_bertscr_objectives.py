@@ -570,7 +570,7 @@ class SeqBertScoreRandom(SeqBertScoreObjective):
         try:
             translations_sampler = self.do_sample(input_batch, num_samples)
 
-            for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(inputs["labels"], translations_sampler):
+            for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores, _) in zip(inputs["labels"], translations_sampler):
                 # hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
                 # ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
 
