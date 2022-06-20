@@ -61,16 +61,16 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_a
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 train_obj = SeqBertScoreRandom(lang_module,
-                                  texts_or_path=train_dataset.source,
-                                  labels_or_path=train_dataset.target,
-                                  val_texts_or_path=val_dataset.source[:20],
-                                  val_labels_or_path=val_dataset.target[:20],
-                                  source_lang_id=src_lang,
-                                  target_lang_id=tgt_lang,
-                                  batch_size=1,
-                                  objective_id=train_dataset_id,
-                                  loss_weight=100,
-                                  remember_last_input=True)
+                               texts_or_path=train_dataset.source,
+                               labels_or_path=train_dataset.target,
+                               val_texts_or_path=val_dataset.source[:20],
+                               val_labels_or_path=val_dataset.target[:20],
+                               source_lang_id=src_lang,
+                               target_lang_id=tgt_lang,
+                               batch_size=1,
+                               objective_id=train_dataset_id,
+                               # loss_weight=100
+                               )
 
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
