@@ -567,54 +567,50 @@ class SeqBertScoreRandom(SeqBertScoreObjective):
 
         losses = []
 
-        expected_distances = torch.zeros(self.compatible_head_model.config.max_length, device=self.device)
-
         try:
             translations_sampler = self.do_sample(input_batch, num_samples)
 
             for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores) in zip(inputs["labels"], translations_sampler):
-                hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
-                ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
+                # hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
+                # ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
 
                 # remove hypotheses that can not be encoded with the embedder
 
                 # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
-                with torch.no_grad():
-                    # _, ref_embeddings = self._embeddings_for_text([ref_text])
-                    # ref_embeddings = ref_embeddings[0]
-                    ref_embeddings = torch.rand_like(ref_embeddings)
-
-                    hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
-                    hyps_embeddings = torch.rand_like(hyps_embeddings)
+                # with torch.no_grad():
+                #     # _, ref_embeddings = self._embeddings_for_text([ref_text])
+                #     # ref_embeddings = ref_embeddings[0]
+                #     ref_embeddings = torch.rand_like(ref_embeddings)
+                #
+                #     hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
+                #     hyps_embeddings = torch.rand_like(hyps_embeddings)
 
                     # TODO: if it fails, apply the mask
                     # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
 
-                ref_embeddings.requires_grad_(True)
-                hyps_embeddings.requires_grad_(True)
+                # ref_embeddings.requires_grad_(True)
+                # hyps_embeddings.requires_grad_(True)
 
                 # TODO: this could be vectorised by matching one-hot per-character representations of wordpieces
-                for hyp_own_ids, hyp_token_scores, hyp_embeder_ids, hyp_embeddings in zip(hyps_own_ids,
-                                                                                          hyps_token_scores,
-                                                                                          hyps_embedder_inputs.input_ids,
-                                                                                          hyps_embeddings):
+                for hyp_token_scores in hyps_token_scores:
                     # TODO priority: check hyp_embeddings shape (should be 2D)
-                    own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
-                                                                                      hyp_own_ids,
-                                                                                      hyp_embeder_ids,
-                                                                                      hyp_embeddings)
+                    # own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
+                    #                                                                   hyp_own_ids,
+                    #                                                                   hyp_embeder_ids,
+                    #                                                                   hyp_embeddings)
                     # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
                     # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
                     # losses.append(distances * hyp_token_scores[own_indices])
 
-                    scores = hyp_token_scores[own_indices]
+                    # scores = hyp_token_scores[own_indices]
+                    scores = hyp_token_scores
 
-                    distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
+                    # distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
 
                     # scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
-                    # losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
-                    losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
+                    losses.append(torch.nn.L1Loss()(torch.rand_like(scores), 1 - scores))
+                    # losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
         except RuntimeError as e:
             logger.error("%s: Skipping input and returning zero loss" % e)
             logger.error("%s: Saving corrupted model to `runtime_error_model`")
