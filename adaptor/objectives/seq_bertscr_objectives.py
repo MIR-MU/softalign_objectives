@@ -555,10 +555,10 @@ class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
         return torch.vstack(losses).mean()
 
 
-class SeqBertScoreRandom(Sequence2Sequence):
+class SeqBertScoreRandom(BERTScoreObjectiveBase):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        # super().__init__(*args, **kwargs)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
