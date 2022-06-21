@@ -566,7 +566,7 @@ class SeqBertScoreRandom(BERTScoreObjectiveBase):
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
                       lm_logit_outputs: Optional[torch.FloatTensor] = None,
                       labels: Optional[torch.LongTensor] = None,
-                      num_samples: int = 10,
+                      num_samples: int = 5,
                       ignored_label: int = -100) -> torch.Tensor:
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
