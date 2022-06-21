@@ -70,7 +70,7 @@ train_obj = DeconSeqBertScoreObjective(lang_module,
                                        target_lang_id=tgt_lang,
                                        batch_size=1,
                                        objective_id=train_dataset_id,
-                                       loss_weight=100,
+                                       loss_weight=1,
                                        remember_last_input=True)
 
 # validations are also computed by the training MLE objective
