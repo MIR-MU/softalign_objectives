@@ -29,7 +29,7 @@ test_firstn = 1000
 
 train_dataset_id = "OpenSubtitles"
 # we test on all the domains in the constructed collection
-test_dataset_ids = OPUS_RESOURCES_URLS.keys()
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
