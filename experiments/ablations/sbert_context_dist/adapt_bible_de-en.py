@@ -84,7 +84,7 @@ train_mle = Sequence2Sequence(lang_module,
                               batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=train_obj,
-                              loss_weight=25,
+                              loss_weight=1,
                               objective_id=train_dataset_id)
 
 training_objectives = [train_obj, train_mle]
