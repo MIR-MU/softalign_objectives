@@ -64,13 +64,13 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_a
 train_obj = DeconSeqBertScoreObjective(lang_module,
                                        texts_or_path=train_dataset.source,
                                        labels_or_path=train_dataset.target,
-                                       val_texts_or_path=val_dataset.source[:20],
-                                       val_labels_or_path=val_dataset.target[:20],
+                                       val_texts_or_path=val_dataset.source[:2],
+                                       val_labels_or_path=val_dataset.target[:2],
                                        source_lang_id=src_lang,
                                        target_lang_id=tgt_lang,
                                        batch_size=1,
                                        objective_id=train_dataset_id,
-                                       loss_weight=100,
+                                       loss_weight=1,
                                        remember_last_input=True)
 
 # validations are also computed by the training MLE objective
