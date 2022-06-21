@@ -558,9 +558,9 @@ class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
 class SeqBertScoreRandom(BERTScoreObjectiveBase):
 
     def __init__(self, *args, **kwargs):
-        # super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.scorer = None
 
     def _compute_loss(self,
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
