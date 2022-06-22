@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 from typing import List, Dict, Tuple, Union, Optional
@@ -80,6 +81,9 @@ class Adapter(Trainer):
         return (loss, mock_outputs) if return_outputs else loss
 
     def log(self, logs: List[Dict[str, float]]) -> None:
+        gc.collect(generation=0)
+        self._objects_log()
+        
         is_eval_log = any(self.eval_metrics_prefix in log_key for log_key in logs)
         extended_logs = self.schedule.objectives_log(split="eval" if is_eval_log else "train")
         return super().log({**logs, **extended_logs})
