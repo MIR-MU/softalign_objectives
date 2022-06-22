@@ -71,7 +71,7 @@ train_obj = DeconSeqBertScoreObjectiveDistLoss(lang_module,
                                                objective_id=train_dataset_id,
                                                loss_weight=1,
                                                remember_last_input=True,
-                                               emb_infer_batch_size=256,
+                                               emb_infer_batch_size=16,
                                                )
 
 # validations are also computed by the training MLE objective
