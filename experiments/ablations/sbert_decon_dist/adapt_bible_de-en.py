@@ -5,8 +5,7 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective, DeconSeqBertScoreObjectiveDistLoss
-from adaptor.objectives.token_bertscr_objective import DeconTokenBertScoreObjective
+from adaptor.objectives.seq_bertscr_objectives import DeconSeqBertScoreObjectiveDistLoss
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
@@ -38,7 +37,7 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-7,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-6,  # we set LR=2e-4 for pre-training experiments
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_patience=20,
                                          do_train=True,
@@ -84,7 +83,7 @@ train_mle = Sequence2Sequence(lang_module,
                               batch_size=4,
                               val_evaluators=val_metrics,
                               share_other_objective_head=train_obj,
-                              loss_weight=25,
+                              loss_weight=1,
                               objective_id=train_dataset_id)
 
 training_objectives = [train_obj, train_mle]

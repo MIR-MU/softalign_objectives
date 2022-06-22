@@ -16,17 +16,17 @@ from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 # gc.set_debug(gc.DEBUG_LEAK)
 
 data_dir = "examples/machine_translation"
-experiment_id = "sbert"
+experiment_id = "dec_sbert_dgt"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "de"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+train_dataset_id = "DGT"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
