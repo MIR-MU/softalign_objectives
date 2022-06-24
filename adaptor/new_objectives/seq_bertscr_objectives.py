@@ -1,3 +1,7 @@
+"""
+Implementations of the Sequence Alignment objectives, including the ablations.
+"""
+
 import itertools
 import logging
 from typing import Tuple, Iterator, Union, Dict, Optional, List, Iterable
@@ -11,33 +15,21 @@ from adaptor.objectives.seq2seq import Sequence2Sequence
 logger = logging.getLogger()
 
 
-class BERTScoreObjectiveBase(Sequence2Sequence):
+class AlignmentBase(Sequence2Sequence):
+    """
+    Base functionality of the Alignment-based objectives.
+    Provides the following functionality:
+    * hypotheses sampling including their differentiable per-token scores,
+    * alignment of the wordpieces of two different tokenizers
+    * implementation of decontextualization
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # in all our experiments, we use BERTScore as the contextualized embeddings provider
         self.scorer = BERTScore()
-
-        self.own_iterator = iter(self._get_inputs_iterator("train"))
-
-        # self.recent_sample = None
-
-    # def _get_inputs_iterator(self, split: str) -> Iterator:
-    #     for sample in super()._get_inputs_iterator(split):
-    #         # this objective needs to remember its inputs, to be able to conditionally generate
-    #         self.samples_queue.append(sample)
-    #         # if self.our_single_sample is None:
-    #         #     self.our_single_sample = sample
-    #         yield sample
-    #         # else:
-    #         #     yield self.our_single_sample
-    #
-    # def _get_next_sample(self) -> Union[Dict[str, torch.LongTensor], BatchEncoding]:
-    #     sample = self.samples_queue.pop()
-    #     self.samples_queue = []
-    #     return sample
-    #     # return self.our_single_sample
 
     def sample_n(self,
                  inputs: Union[Dict[str, torch.LongTensor], BatchEncoding],
@@ -46,6 +38,12 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                  greedy: Optional[bool] = False,
                  collect_logits: Optional[bool] = False) -> Tuple[torch.Tensor, torch.Tensor,
                                                                   torch.Tensor, torch.Tensor]:
+        """
+        Samples n hypotheses from the model, according to the model probability distribution.
+        If top-k is given, sample only from the k-best-rated next-tokens.
+        If collect_logits, return also logits for these tokens (with grad_fn).
+        If greedy, return only the most-likely next-token(s).
+        """
         device = self.compatible_head_model.device
         seq = torch.empty(num_samples, 0, dtype=torch.int64).to(device)
         seq_probs = torch.empty(num_samples, 0, dtype=torch.float32).to(device)
@@ -128,7 +126,6 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                     logits_history = torch.hstack(logits_history)
 
                 return seq, seq_probs, torch.hstack(agg_probs), logits_history
-                # TODO: for DecSeqBertsObjective, we need to aggregate output.logits here
 
             decoder_input = next_token_id
 
@@ -152,6 +149,9 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                                      text: str,
                                      tokenizer: PreTrainedTokenizer,
                                      symbols: List[str] = (" ", "#")) -> str:
+        """
+        Removes the decoding specialities of BERT Tokenizer.
+        """
         out_text = text
         for symbol in itertools.chain(symbols, tokenizer.all_special_tokens):
             out_text = out_text.replace(symbol, "")
@@ -160,18 +160,19 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     def _intervals_for_text_tokenizer(self,
                                       tokenizer_ids: torch.Tensor,
                                       tokenizer: PreTrainedTokenizer) -> Tuple[List[str], List[Tuple[int, int]]]:
-        # TODO: eliminate this tokenization completely?
-        # TODO: could we use a dict of distances instead?
+        """
+        Computes intervals of token_ids of the given tokenizer. The intervals are used to find the optimal alignment
+        of the result of two distinct tokenizers, in our case BART's sentencepiece and BERT's wordpiece.
+        """
         if isinstance(tokenizer, BertTokenizer):
             tokens = [self._erase_bert_tokenizer_extras(subword, tokenizer)
                       for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
         else:
             tokens = [subword if subword not in tokenizer.all_special_tokens else ""
                       for subword in tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)]
-            # tokens = tokenizer.batch_decode(tokenizer_ids, skip_special_tokens=True)
 
         lengths = [len(token) for token in tokens]
-        cum_lengths = [0, lengths[0]]  # TODO: IndexError: list index out of range (cpu experiment)
+        cum_lengths = [0, lengths[0]]
         for ith_length in lengths[1:]:
             cum_lengths.append(cum_lengths[-1] + ith_length)
 
@@ -181,7 +182,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
     @staticmethod
     def _offsets_intersection(x: Tuple[int, int], y: Tuple[int, int]) -> float:
         """
-        Returns a size of the offset of the two intervals and their relative position: ()
+        Returns a size of the offset of the two intervals and their relative position.
         """
         min_len = min(x[1] - x[0], y[1] - y[0])
 
@@ -215,6 +216,7 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                                        start_pos: int, end_pos: Optional[int] = None) -> Tuple[List[int], List[int]]:
         """
         Gets the coordinates mapping own_ids to the coordinates of embedder_ids.
+        If start_pos or end_pos is given, this will only perform the mapping on such-selected interval.
         """
         own_tokens, own_intervals = self._intervals_for_text_tokenizer(own_ids, self.tokenizer)
         emb_tokens, emb_intervals = self._intervals_for_text_tokenizer(embedder_ids, self.scorer.scorer._tokenizer)
@@ -249,10 +251,10 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                 own_token_chars = set(own_tokens[own_pointer])
                 embedded_token_chars = set(emb_tokens[best_alignment])
                 if own_token_chars and not own_token_chars.intersection(embedded_token_chars):
-                    # print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
-                    #       "token. Own tokens: %s, embedded tokens: %s"
-                    #       % (own_tokens[own_pointer], emb_tokens[best_alignment]))
-                    # TODO priority: we do not like that this sometimes returns nothing
+                    print("WARNING: Alignment of non-empty input id to embedding with no intersection with the embeded "
+                          "token. Own tokens: %s, embedded tokens: %s"
+                          % (own_tokens[own_pointer], emb_tokens[best_alignment]))
+                    # we skip the tokens that we can not align, but this show happen for a vast minority of alignments
                     pass
                 else:
                     own_indices.append(own_pointer)
@@ -302,12 +304,10 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         # alignment to the reference check:
         return own_ids_pos, hyp_ids_distances_min.indices, hyp_ids_distances_min.values
 
-    def _get_decodeable_hyps_mask(self, embedder_inputs: torch.LongTensor) -> torch.Tensor:
-        encoding_contains_unks = (embedder_inputs == self.scorer.scorer._tokenizer.unk_token_id).any(axis=1)
-        return ~encoding_contains_unks
-
     def _embeddings_for_text(self, texts: List[str]) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
-        
+        """
+        Computes BERTScore embeddings for a list of texts.
+        """
         embedder_inputs = self.scorer.scorer._tokenizer(texts,
                                                         return_tensors="pt",
                                                         truncation="longest_first",
@@ -320,8 +320,11 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
                                            texts: List[str],
                                            infer_batch_size: int = 32,
                                            emb_size: int = 768) -> Tuple[List[int], torch.Tensor]:
-        # 2. per-batch append to a dict of Marian sentencepieces, recast to CPU
-        # index is a single big matrix
+        """
+        Collects decontextualized embeddings for a given list of texts.
+        To allow optimisation, the embeddings should have predefined `emb_size` dimensionality.
+        `infer_batch_size` can be scaled according to the available GPU infrastructure.
+        """
 
         spiece_embeddings = torch.zeros(len(self.tokenizer.decoder.keys()), emb_size, device=self.device)
         spiece_counts = [0 for spiece in self.tokenizer.decoder.keys()]
@@ -355,8 +358,8 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
 
                         orig_emb_weight = 1 - new_emb_weight
                         orig_emb_weighted = spiece_embeddings[spiece.item()] * orig_emb_weight
-                        # TODO: are the embeddings not too different?
-                        # sanity check: assert on first addition here:
+
+                        # sanity check: assert the result of the first aggregation here:
                         # torch.vstack([spiece_emb, spiece_embeddings[spiece.item()]]).mean(0) ==
                         # orig_emb_weighted + new_emb_weighted
                         spiece_embeddings[spiece.item()] = orig_emb_weighted + new_emb_weighted
@@ -364,10 +367,17 @@ class BERTScoreObjectiveBase(Sequence2Sequence):
         return spiece_counts, spiece_embeddings
 
 
-class SeqBertScoreObjective(BERTScoreObjectiveBase):
+class SeqAlignObjective(AlignmentBase):
+    """
+    SeqAlign objective samples the top-k tokens of selected `num_samples` hypotheses and updates the model
+    conditioned by the prefixes of self-generated hypotheses.
+    The model is updated according to L1Loss, measuring the distance of model scores to the alignment.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # memory allocation to optimize performance:
         self.distances_pads = {i: torch.zeros(self.tokenizer.model_max_length - i,
                                               requires_grad=True, device=self.device)
                                for i in range(self.tokenizer.model_max_length)}
@@ -375,119 +385,89 @@ class SeqBertScoreObjective(BERTScoreObjectiveBase):
                                           requires_grad=True, device=self.device)
                             for i in range(self.tokenizer.model_max_length)}
 
-    # def _get_inputs_iterator(self, split: str) -> Iterator:
-    #     for sample in super()._get_inputs_iterator(split):
-    #         # this objective needs to remember its inputs, to be able to conditionally generate
-    #         self.recent_sample = sample
-    #
-    #         yield sample
-
     def _compute_loss(self,
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
                       lm_logit_outputs: Optional[torch.FloatTensor] = None,
                       labels: Optional[torch.LongTensor] = None,
                       num_samples: int = 10,
                       ignored_label: int = -100) -> torch.Tensor:
-        # init_counts = Adapter._count_objects()
 
-        # assert self.recent_sample is not None, "Sample to be processed was not yet assigned"
-
-        # batch = {k: v.to(self.device) for k, v in next(self.own_iterator).items()}
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         losses = []
-        # batch_distances = []
-        # batch_scores = []
-        expected_distances = torch.zeros(self.compatible_head_model.config.max_length, device=self.device)
 
         try:
+            # sample hypotheses
             translations_sampler = self.do_sample(input_batch, num_samples)
 
             for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores, _) in zip(inputs["labels"], translations_sampler):
+                # encode both reference and hypotheses
                 hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
                 ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
 
-                # remove hypotheses that can not be encoded with the embedder
-
-                # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
+                # infer grounding embeddings of both reference and hypotheses
                 with torch.no_grad():
                     _, ref_embeddings = self._embeddings_for_text([ref_text])
                     ref_embeddings = ref_embeddings[0]
                     hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
 
-                    # TODO: if it fails, apply the mask
-                    # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
-
                 ref_embeddings.requires_grad_(True)
                 hyps_embeddings.requires_grad_(True)
 
-                # TODO: this could be vectorised by matching one-hot per-character representations of wordpieces
+                # per-top-k token iteration
+                # this could be further optimized by matching one-hot per-character representations of wordpieces
                 for hyp_own_ids, hyp_token_scores, hyp_embeder_ids, hyp_embeddings in zip(hyps_own_ids,
                                                                                           hyps_token_scores,
                                                                                           hyps_embedder_inputs.input_ids,
                                                                                           hyps_embeddings):
-                    # TODO priority: check hyp_embeddings shape (should be 2D)
+                    # compute alignment: indices and quality
                     own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
                                                                                       hyp_own_ids,
                                                                                       hyp_embeder_ids,
                                                                                       hyp_embeddings)
-                    # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
-                    # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                    # losses.append(distances * hyp_token_scores[own_indices])
-
+                    # subsample corresponding tokens
                     scores = hyp_token_scores[own_indices]
 
+                    # pad to the same (=max) length
                     distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
-
                     scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
 
-                    # batch_distances.append(distances_padded)
-                    # batch_scores.append(scores_padded)
-
-                    # TODO: reconsider L1Loss:
-                    # https://pytorch.org/docs/stable/nn.html#loss-functions
+                    # compute loss value
                     losses.append(torch.nn.L1Loss()(distances_padded, 1 - scores_padded))
-                    # losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
-                    # losses.append(torch.nn.L1Loss()(distances_padded * (1 - scores_padded)))
         except RuntimeError as e:
+            # if something fails, we log it and continue, omitting it from the aggregated loss
             logger.error("%s: Skipping input and returning zero loss" % e)
-            # logger.error("%s: Saving corrupted model to `runtime_error_model`")
-            # self.compatible_head_model.save_pretrained('runtime_error_model')
-            # self.tokenizer.save_pretrained('runtime_error_model')
 
             return torch.tensor(0., requires_grad=True, dtype=torch.float)
-        # if not losses:
-        #     print("Warning: empty set of valid hypotheses to compute loss on.")
-        #     # return torch.tensor(0., dtype=torch.float, requires_grad=True)
-        #     return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
-        # else:
-        #     return torch.hstack(losses).mean()
 
-        # self.recent_sample = None
-
-        # final_counts = Adapter._count_objects()
-        # print("GPU: change of torch objects on one forward(): %s"
-        #       % Adapter._count_objects_diff(init_counts, final_counts))
-
+        # we aggregate the losses and yield it for backward and update
         return torch.hstack(losses).mean()
 
 
-class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
+# following objectives are the ablation analyses if SeqAlignObjective.
+
+
+class SeqAlignCEDecObjective(AlignmentBase):
+    """
+    Sequential objective based on CrossEntropy loss.
+    The alignments are computed from decontextualized embeddings.
+    Thanks to the explicit embedding assignment to every token of the trained model vocabulary,
+    we do not have to perform the matching "on-the-fly", making the objective faster and _compute_loss simpler.
+    """
 
     def __init__(self, *args, emb_infer_batch_size: int = 32, emb_size: int = 768, num_samples: int = 10, **kwargs):
         super().__init__(*args, **kwargs)
         self.num_samples = num_samples
 
-        # TODO: here goes inference of decontextualized embeddings
-        # 1. per-batch inference of embeddings for all references
         source_texts, ref_texts = self._per_split_iterators("train")
         ref_texts = list(ref_texts)
 
+        # inference of the decontextualized embeddings
         spiece_counts, self.spiece_embeddings = self.decon_spiece_embeddings_from_texts(ref_texts,
                                                                                         emb_infer_batch_size,
                                                                                         emb_size)
-        # sencencepiece embeddings are now the leafs of the computation graph
         self.spiece_embeddings.requires_grad_(True)
+        # counts of each wordpiece is used to find embeddings which are not in the vocab
         self.spiece_counts = torch.tensor(spiece_counts, dtype=torch.int32, device=self.device)
         logger.warning("Indexation done. %s nonzero embeddings, averaged from %s embeddings"
               % (sum(bool(count) for count in spiece_counts), sum(spiece_counts)))
@@ -499,14 +479,18 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
                       ignored_label: int = -100) -> torch.Tensor:
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
+        # compute reference embeddings - per-token hypotheses embeddings are pre-computed
         with torch.no_grad():
             ref_emb_inputs, ref_embs = self._embeddings_for_text(self.tokenizer.batch_decode(labels))
         ref_embs.requires_grad_(True)
 
+        # mask to select only over the known embeddings, i.e. the ones that we have the embeddings for
         indexed_tokens = torch.where(self.spiece_counts > 0)[0]
+
         losses = []
         loss_inst = torch.nn.CrossEntropyLoss()
 
+        # sample hypotheses
         translations_sampler = self.do_sample(input_batch, self.num_samples, collect_logits=True)
 
         for per_sample_ref_embs, (hyps_own_ids, token_scores, hyps_scores, hyps_logits) in zip(ref_embs,
@@ -522,7 +506,15 @@ class DeconSeqBertScoreObjective(BERTScoreObjectiveBase):
         return torch.vstack(losses).mean()
 
 
-class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
+class SeqAlignDecObjective(SeqAlignCEDecObjective):
+    """
+    Decontextualized SeqAlign objective.
+    In contrary to the previous SeqAlignCEDecObjective, it merely exchanges CrossEntropyLoss to L1Loss.
+    This delimits the impact of the change of loss type on the eventual performance.
+
+    Thanks to the explicit embedding assignment to every token of the trained model vocabulary,
+    we do not have to perform the matching "on-the-fly", making the objective faster and _compute_loss simpler.
+    """
 
     def _compute_loss(self,
                       inputs: Optional[Union[BatchEncoding, Dict[str, torch.Tensor]]] = None,
@@ -531,14 +523,18 @@ class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
                       ignored_label: int = -100) -> torch.Tensor:
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
+        # compute reference embeddings - per-token hypotheses embeddings are pre-computed
         with torch.no_grad():
             ref_emb_inputs, ref_embs = self._embeddings_for_text(self.tokenizer.batch_decode(labels))
         ref_embs.requires_grad_(True)
 
+        # mask to select only over the known embeddings, i.e. the ones that we have the embeddings for
         indexed_tokens = torch.where(self.spiece_counts > 0)[0]
+
         losses = []
         loss_inst = torch.nn.L1Loss()
 
+        # sample hypotheses
         translations_sampler = self.do_sample(input_batch, self.num_samples, collect_logits=True)
 
         for per_sample_ref_embs, (hyps_own_ids, token_scores, hyps_scores, hyps_logits) in zip(ref_embs,
@@ -555,7 +551,12 @@ class DeconSeqBertScoreObjectiveDistLoss(DeconSeqBertScoreObjective):
         return torch.vstack(losses).mean()
 
 
-class SeqBertScoreRandom(BERTScoreObjectiveBase):
+class SeqBertScoreRandom(AlignmentBase):
+    """
+    Sequential objective assigning random targets to each sampled hypothesis.
+    This objective is an ablation to contextualized embeddings grounding, but can also be used to benchmark
+    the time spent on sampling hypotheses. See the paper for both qualitative and speed benchmark results.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -576,64 +577,13 @@ class SeqBertScoreRandom(BERTScoreObjectiveBase):
             translations_sampler = self.do_sample(input_batch, num_samples)
 
             for ref_ids, (hyps_own_ids, hyps_token_scores, hyp_scores, _) in zip(inputs["labels"], translations_sampler):
-                # hyps_text = self.tokenizer.batch_decode(hyps_own_ids, skip_special_tokens=True)
-                # ref_text = self.tokenizer.decode([l if l > 0 else 0 for l in ref_ids], skip_special_tokens=True)
-
-                # remove hypotheses that can not be encoded with the embedder
-
-                # all_hyps_score = torch.tensor([self.scorer.evaluate_str([ref_text], [hyp_str]) for hyp_str in hyps_text])
-                # with torch.no_grad():
-                #     # _, ref_embeddings = self._embeddings_for_text([ref_text])
-                #     # ref_embeddings = ref_embeddings[0]
-                #     ref_embeddings = torch.rand_like(ref_embeddings)
-                #
-                #     hyps_embedder_inputs, hyps_embeddings = self._embeddings_for_text(hyps_text)
-                #     hyps_embeddings = torch.rand_like(hyps_embeddings)
-
-                    # TODO: if it fails, apply the mask
-                    # decodeable_hyps_mask = self._get_decodeable_hyps_mask(hyps_embedder_inputs).to(self.device)
-
-                # ref_embeddings.requires_grad_(True)
-                # hyps_embeddings.requires_grad_(True)
-
-                # TODO: this could be vectorised by matching one-hot per-character representations of wordpieces
                 for hyp_token_scores in hyps_token_scores:
-                    # TODO priority: check hyp_embeddings shape (should be 2D)
-                    # own_indices, emb_indices, distances = self._distances_for_hyp_ids(ref_embeddings,
-                    #                                                                   hyp_own_ids,
-                    #                                                                   hyp_embeder_ids,
-                    #                                                                   hyp_embeddings)
-                    # TODO once functional, add other covariates - weighting by confidence / by overall hyp_score
-                    # Multiply by the corresponding per-token probabilities, to construct the DCG to trained model
-                    # losses.append(distances * hyp_token_scores[own_indices])
-
-                    # scores = hyp_token_scores[own_indices]
                     scores = hyp_token_scores
 
-                    # distances_padded = torch.hstack([distances, self.distances_pads[distances.shape[0]]])
-
-                    # scores_padded = torch.hstack([scores, self.scores_pads[scores.shape[0]]])
-
                     losses.append(torch.nn.L1Loss()(torch.rand_like(scores), 1 - scores))
-                    # losses.append(torch.nn.L1Loss()(distances_padded, expected_distances))
         except RuntimeError as e:
-            logger.error("%s: Skipping input and returning zero loss" % e)
-            logger.error("%s: Saving corrupted model to `runtime_error_model`")
-            self.compatible_head_model.save_pretrained('runtime_error_model')
-            self.tokenizer.save_pretrained('runtime_error_model')
+            logger.error("%s. Skipping input and returning zero loss." % e)
 
             return torch.tensor(0., requires_grad=True, dtype=torch.float)
-        # if not losses:
-        #     print("Warning: empty set of valid hypotheses to compute loss on.")
-        #     # return torch.tensor(0., dtype=torch.float, requires_grad=True)
-        #     return torch.FloatTensor(0., dtype=torch.float, requires_grad=True)
-        # else:
-        #     return torch.hstack(losses).mean()
-
-        # self.recent_sample = None
-
-        # final_counts = Adapter._count_objects()
-        # print("GPU: change of torch objects on one forward(): %s"
-        #       % Adapter._count_objects_diff(init_counts, final_counts))
 
         return torch.hstack(losses).mean()
