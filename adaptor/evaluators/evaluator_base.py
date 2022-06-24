@@ -16,7 +16,7 @@ class EvaluatorBase(abc.ABC):
     or worse (like 'accuracy').
     3. Either override `__call__` or only `evaluate_str` (in case of generative evaluators).
        Note that __call__ performs its own iteration over the eval Dataset.
-       See some implemented evaluators for examples.
+       See some implemented evaluators for utils.
     """
 
     compatible_heads: List[Head]

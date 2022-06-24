@@ -122,7 +122,7 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         Evaluation of expected and actually-generated strings.
         This method can be used separately, in standalone in test evaluation.
         When implementing evaluation of generative language model, you can implement only this method.
-        See other GenerativeEvaluators (e.g. BLEU, BERTScore) for examples.
+        See other GenerativeEvaluators (e.g. BLEU, BERTScore) for utils.
 
         :param expected_list: A sequence of reference texts, that model is expected to generate.
         :param actual_list: A sequence of actually-generated texts by the model.

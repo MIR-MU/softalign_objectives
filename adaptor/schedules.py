@@ -64,7 +64,7 @@ class Schedule(abc.ABC):
         """
         Constructs an iterable determining an ordering of sampling objectives.
         Override only this method to implement custom Schedule.
-        See the examples in SequentialSchedule and ParallelSchedule below.
+        See the utils in SequentialSchedule and ParallelSchedule below.
 
         :param split: Data split to sample objectives for.
         :return: Iterator of Objectives determining order in which to sample given objectives.

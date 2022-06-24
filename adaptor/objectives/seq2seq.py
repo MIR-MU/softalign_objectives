@@ -77,9 +77,9 @@ class Sequence2SequenceMixin(SequentialMixin, abc.ABC):
         # adjust only default max_samples_per_*log, since generative evaluation is much slower
         # but stick to user selection, if there is any
         if "max_samples_per_log" not in kwargs:
-            kwargs["max_samples_per_log"] = 20
+            kwargs["max_samples_per_log"] = 200
         if "max_samples_per_eval_log" not in kwargs:
-            kwargs["max_samples_per_eval_log"] = 100
+            kwargs["max_samples_per_eval_log"] = 1000
 
         super().__init__(*args, **kwargs)
 
