@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="adaptor",
-    version='0.1.2',
+    version='0.1.3',
     description="Adaptor: Objective-centric Adaptation Framework for Language Models.",
     long_description_content_type="text/markdown",
     long_description=readme,
@@ -20,8 +20,7 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Programming Language :: Python :: 3.8"
     ],
-    author="Michal Stefanik",
-    author_email="stefanik.m@mail.muni.cz",
+    author="Adaptor Authors & Contributors",
     url="https://github.com/gaussalgo/adaptor",
     python_requires=">=3.7",
     license="MIT",
@@ -30,7 +29,7 @@ setup(
     zip_safe=True,
     install_requires=[
         "torch>=1.7",
-        "transformers==4.10.2",
+        "transformers==4.18.0",
         "sentencepiece",
     ],
     test_require=[
@@ -44,7 +43,7 @@ setup(
             "fairseq",
             "protobuf",
         ],
-        "examples": [
+        "utils": [
             "comet-ml",
         ],
     },
