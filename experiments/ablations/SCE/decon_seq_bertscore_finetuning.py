@@ -5,16 +5,16 @@ import torch
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
-from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreObjective, DeconSeqBertScoreObjective
+from adaptor.new_objectives.seq_bertscr_objectives import SeqAlignCEDecObjective
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
-from examples.data_utils_opus import OPUSDataset
+from utils.data_utils_opus import OPUSDataset
 
 # torch.autograd.set_detect_anomaly(True)
 # gc.set_debug(gc.DEBUG_LEAK)
 
-data_dir = "examples/machine_translation"
+data_dir = "utils"
 experiment_id = "mrt"
 
 adapt_dataset = "OpenSubtitles"
@@ -24,7 +24,7 @@ src_lang = "en"
 tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
-train_firstn = None
+train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
@@ -65,18 +65,18 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True),
                ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-tokenbsc_wiki = DeconSeqBertScoreObjective(lang_module,
-                                           texts_or_path=wiki_pairs.source,
-                                           labels_or_path=wiki_pairs.target,
-                                           val_texts_or_path=wiki_val_pairs.source[:20],
-                                           val_labels_or_path=wiki_val_pairs.target[:20],
-                                           source_lang_id=src_lang,
-                                           target_lang_id=tgt_lang,
-                                           batch_size=1,
-                                           val_evaluators=val_metrics,
-                                           objective_id="Wiki",
-                                           loss_weight=100,
-                                           remember_last_input=True)
+tokenbsc_wiki = SeqAlignCEDecObjective(lang_module,
+                                       texts_or_path=wiki_pairs.source,
+                                       labels_or_path=wiki_pairs.target,
+                                       val_texts_or_path=wiki_val_pairs.source[:20],
+                                       val_labels_or_path=wiki_val_pairs.target[:20],
+                                       source_lang_id=src_lang,
+                                       target_lang_id=tgt_lang,
+                                       batch_size=1,
+                                       val_evaluators=val_metrics,
+                                       objective_id="Wiki",
+                                       loss_weight=100,
+                                       remember_last_input=True)
 
 seq_wiki = Sequence2Sequence(lang_module,
                              texts_or_path=wiki_pairs.source,
@@ -132,7 +132,9 @@ adapter.train()
 adapter.save_model(experiment_id)
 print("Adaptation finished. Trained model for each head can be reloaded from path: `%s`" % experiment_id)
 
-# we evaluate trained model right after the training to report the results to experiment's log
+# we evaluate trained model right after the training, these should approximately match the reported results
+# note that we do not perform checkpoint averaging here, that we used to report our results 
+# for convenience, we average the test reports from the external logs
 print("Starting evaluation")
 
 test_device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -5,28 +5,24 @@ from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.objectives.seq_bertscr_objectives import SeqBertScoreRandom
+from adaptor.new_objectives.seq_bertscr_objectives import SeqBertScoreRandom
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
-from examples.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
+from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
-# import gc
 
-# torch.autograd.set_detect_anomaly(True)
-# gc.set_debug(gc.DEBUG_LEAK)
-
-data_dir = "examples/machine_translation"
-experiment_id = "sbert_decontextualised"
+data_dir = "utils"
+experiment_id = "dec_sbert_dgt"
 
 src_lang = "en"
-tgt_lang = "cs"
+tgt_lang = "de"
 
 # 1. Load OPUS domain-specific data sets
-train_firstn = None
+train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "wikimedia"
+train_dataset_id = "DGT"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -124,7 +120,9 @@ adapter.train()
 adapter.save_model(experiment_id)
 print("Adaptation finished. Trained model for each head can be reloaded from path: `%s`" % experiment_id)
 
-# we evaluate trained model right after the training to report the results to experiment's log
+# we evaluate trained model right after the training, these should approximately match the reported results
+# note that we do not perform checkpoint averaging here, that we used to report our results 
+# for convenience, we average the test reports from the external logs
 print("Starting evaluation")
 
 test_device = "cuda" if torch.cuda.is_available() else "cpu"
