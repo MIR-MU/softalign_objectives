@@ -25,6 +25,13 @@ cd soft_mt_adaptation
 pip install -e .[generative]
 ```
 
+Then you can choose the configuration and run it from the project root, for instance:
+```shell
+CUDA_VISIBLE_DEVICES=XX python experiments/seq_align/adapt_wiki_en-cs.py
+```
+The results will be collected in your configured logging environment. 
+We used [comet.ml](https://comet.ml) for automated logging collection.
+
 We report the configuration of our environmental testbed in our paper:
 ```text
 We performed the adaptation of each of the proposed objectives on a server with a single NVidia Tesla A100, 
