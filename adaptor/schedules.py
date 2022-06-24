@@ -43,9 +43,19 @@ class Schedule(abc.ABC):
         self.objectives = {"train": {id(o): o for o in objectives},
                            "eval": {id(o): o for o in objectives + list(extra_eval_objectives)}}
 
+        # initially, let the user know the total number of samples that will be used for training and evaluation
+        for split in ["train", "eval"]:
+            num_samples = 0
+            for oid, objective in self.objectives[split].items():
+                num_samples += objective.dataset_length[split]
+
+            logger.warning("Total number of %s samples: %s", split, num_samples)
+            if not num_samples:
+                logger.warning("Make sure that you do not want to pass any %s samples!", split)
+
         self.objectives_outputs_queue = []
         self.converged_objectives = []
-        self.should_stop = True
+        self.should_stop = False
 
         self.args = args
 
@@ -76,7 +86,7 @@ class Schedule(abc.ABC):
         return out_logs
 
     def _objective_passed_epochs(self, oid: int) -> bool:
-        return self.objectives["train"][oid].epoch >= self.args.num_train_epochs
+        return self.objectives["train"][oid].epoch > self.args.num_train_epochs
 
     def _should_stop(self) -> Tuple[bool, StoppingStrategy]:
         """
@@ -247,7 +257,6 @@ class Schedule(abc.ABC):
         length_combined = int(sum((o.dataset_length[split] // o.batch_size) for o in self.objectives[split].values()))
         if split == "train":
             length_combined *= self.args.num_train_epochs
-            # TODO for adaptor: properly report length
         return TransformerAdaptationDataset(self._combine_datasets(split), length_combined)
 
 
