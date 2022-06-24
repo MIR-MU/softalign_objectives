@@ -2,13 +2,12 @@ import logging
 import os
 from typing import Tuple, List, Optional
 
-from examples.data_utils import DataSource
+from utils.data_utils import DataSource
 
 # these can be easily exchanged with links to other domains and languages in MOSES format
 # see a list for your language pair in https://opus.nlpl.eu/
 
 OPUS_RESOURCES_URLS = {
-    # "WikiMatrix": "https://object.pouta.csc.fi/OPUS-WikiMatrix/v1/moses/%s-%s.txt.zip",
     "wikimedia": "https://object.pouta.csc.fi/OPUS-wikimedia/v20210402/moses/%s-%s.txt.zip",
     "OpenSubtitles": "https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/%s-%s.txt.zip",
     "Bible": "https://object.pouta.csc.fi/OPUS-bible-uedin/v1/moses/%s-%s.txt.zip",
