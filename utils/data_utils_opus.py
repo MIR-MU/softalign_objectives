@@ -13,6 +13,7 @@ OPUS_RESOURCES_URLS = {
     "Bible": "https://object.pouta.csc.fi/OPUS-bible-uedin/v1/moses/%s-%s.txt.zip",
     "EMEA": "https://opus.nlpl.eu/download.php?f=EMEA/v3/moses/%s-%s.txt.zip",
     "DGT": "https://opus.nlpl.eu/download.php?f=DGT/v2019/moses/%s-%s.txt.zip",
+    "TEDTalks": "https://object.pouta.csc.fi/OPUS-TED2013/v1.1/moses/%s-%s.txt.zip"
 }
 
 # asserting the set, we make sure that no duplicates are loaded among the resources
