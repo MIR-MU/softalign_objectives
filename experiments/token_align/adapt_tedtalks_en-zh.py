@@ -14,7 +14,6 @@ data_dir = "utils"
 experiment_id = "tbert"
 
 src_lang = "en"
-tgt_lang_train = "zh_CN"
 tgt_lang = "zh"
 
 # 1. Load OPUS domain-specific data sets
@@ -27,8 +26,8 @@ train_dataset_id = "TEDTalks"
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
-val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang_train, data_dir=data_dir, firstn=val_firstn)
-train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang_train, data_dir=data_dir, firstn=train_firstn)
+val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
+train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
 
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
