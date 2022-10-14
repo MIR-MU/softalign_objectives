@@ -22,7 +22,7 @@ train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "GNOME"
+train_dataset_id = "TEDTalks"
 # we test on all the domains in the constructed collection
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
