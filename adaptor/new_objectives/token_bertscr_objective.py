@@ -6,11 +6,9 @@ import logging
 from typing import Union, Dict, Optional
 
 import torch
-
 from transformers import BatchEncoding
 
 from adaptor.new_objectives.seq_bertscr_objectives import AlignmentBase
-
 
 logger = logging.getLogger()
 
@@ -27,7 +25,7 @@ class TokenAlignObjective(AlignmentBase):
         source_texts, ref_texts = self._per_split_iterators("train")
 
         # inference of decontextualized embeddings
-        spiece_counts, self.spiece_embeddings = self.decon_spiece_embeddings_from_texts(ref_texts,
+        spiece_counts, self.spiece_embeddings = self.decon_spiece_embeddings_from_texts(list(ref_texts),
                                                                                         emb_infer_batch_size,
                                                                                         emb_size)
         self.spiece_embeddings.requires_grad_(True)
