@@ -50,7 +50,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
-metrics_args = {"additional_sep_char": "▁"}
+metrics_args = {"additional_sep_char": "▁", "symbolic_lang": True}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
