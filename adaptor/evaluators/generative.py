@@ -30,12 +30,14 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
                  use_generate: bool = True,
                  progress_bar: Optional[bool] = True,
                  decides_convergence: Optional[bool] = False,
-                 additional_sep_char: Optional[str] = None):
+                 additional_sep_char: Optional[str] = None,
+                 symbolic_lang: bool = False):
         super().__init__(decides_convergence)
 
         self.additional_sep_char = additional_sep_char
         self.use_generate = use_generate
         self.progress_bar = progress_bar
+        self.symbolic_lang = symbolic_lang
 
     @staticmethod
     @lru_cache(maxsize=10000)
@@ -109,6 +111,11 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
 
             expected_str.extend(tokenizer.batch_decode(batch["labels"], skip_special_tokens=True))
             actual_str.extend(tokenizer.batch_decode(output_tokens, skip_special_tokens=True))
+
+        if self.symbolic_lang:
+            # consider characters as words in the case of symbolic languages
+            expected_str = [" ".join(expected_one) for expected_one in expected_str]
+            actual_str = [" ".join(actual_one) for actual_one in actual_str]
 
         if self.additional_sep_char is not None:
             expected_str = [" ".join(expected_one.split(self.additional_sep_char)) for expected_one in expected_str]
