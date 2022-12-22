@@ -1,6 +1,5 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
-from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
@@ -8,6 +7,7 @@ from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
+from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
 experiment_id = "seq_wiki"
@@ -49,7 +49,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
-metrics_args = {"additional_sep_char": "▁"}
+metrics_args = {"additional_sep_char": "▁", "symbolic_lang": True}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
