@@ -1,14 +1,14 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
+from transformers import AutoModelForSeq2SeqLM
 
 from adaptor.adapter import Adapter
-from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
+from experiments.baselines.ensembling.ensemble_evaluator import EnsembleBLEU, EnsembleROUGE, EnsembleBERTScore
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
-
 
 data_dir = "utils"
 experiment_id = "seq_opensub"
@@ -18,13 +18,12 @@ tgt_lang = "uk"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
-val_firstn = 500
-test_firstn = 1000
+val_firstn = 5
+test_firstn = 12
 
-
-train_dataset_id = "Opensub"
+train_dataset_id = "OpenSubtitles"
 # we test on all the domains in the constructed collection
-test_dataset_ids = OPUS_RESOURCES_URLS.keys()
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -40,9 +39,9 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=400000,
-                                         gradient_accumulation_steps=2,
+                                         gradient_accumulation_steps=1,
                                          logging_steps=50,
-                                         eval_steps=500,
+                                         eval_steps=500,  # TODO: set
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -51,9 +50,13 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
+original_model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
+
 metrics_args = {"additional_sep_char": "▁"}
 
-val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
+val_metrics = [EnsembleBLEU(original_model=original_model, **metrics_args, decides_convergence=True),
+               EnsembleROUGE(original_model=original_model, **metrics_args),
+               EnsembleBERTScore(original_model=original_model, **metrics_args)]
 
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 
@@ -65,7 +68,7 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=30,
+                              batch_size=30,  # TODO: set
                               val_evaluators=val_metrics,
                               objective_id=train_dataset_id)
 
