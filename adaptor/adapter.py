@@ -3,9 +3,9 @@ import logging
 import os
 from typing import List, Dict, Tuple, Union, Optional
 
-from transformers import WEIGHTS_NAME
 import torch
 from transformers import Trainer, BatchEncoding
+from transformers import WEIGHTS_NAME
 from transformers.modeling_utils import unwrap_model
 
 from .lang_module import LangModule
@@ -64,6 +64,34 @@ class Adapter(Trainer):
 
         return features[0]
 
+    # noinspection PyTypeChecker
+    @staticmethod
+    def _do_smooth_labels(outputs: torch.FloatTensor, labels: torch.LongTensor, alpha: float) -> torch.FloatTensor:
+        """
+        Apply label smoothing on the given labels, assuming the shape of outputs.
+
+        :params outputs: trained model outputs
+        :param labels: given training targets to be smoothed, in a one-hot form
+        :alpha propotion of target to be redistributed among false targets.
+
+        :return smoothed version of given one-hot labels
+        """
+        smoothed_labels = torch.full_like(outputs, alpha / outputs.shape[-1])  # fill in negatives
+
+        nonignored_labels_idx = labels.clone()
+        nonignored_labels_idx[nonignored_labels_idx < 0] = 0
+        ignored_labels_idx = labels < 0
+
+        smoothed_labels = smoothed_labels.scatter(dim=-1, index=nonignored_labels_idx.unsqueeze(-1), value=1 - alpha)
+
+        ignored_labels = labels[ignored_labels_idx].unsqueeze(-1).expand(-1, smoothed_labels.shape[-1])
+        smoothed_labels[ignored_labels_idx] = ignored_labels.float()
+
+        # randomized check
+        assert nonignored_labels_idx[0][2] == smoothed_labels.argmax(-1)[0][2]
+
+        return smoothed_labels
+
     def compute_loss(self,
                      model: LangModule,
                      inputs: Dict[str, torch.Tensor],
@@ -71,19 +99,18 @@ class Adapter(Trainer):
         labels = inputs["labels"] if "labels" in inputs else inputs["label"]
 
         outputs = model(**inputs)
-        if self.label_smoother is not None:
-            raise NotImplementedError()  # objective-dependent label smoothing is custom
-            # loss = self.label_smoother(outputs, labels)
-        else:
-            loss = self.schedule.compute_loss(inputs, outputs, labels)
+        if self.args.label_smoothing_factor > 0:
+            labels = self._do_smooth_labels(outputs, labels, self.args.label_smoothing_factor)
+            # raise NotImplementedError()  # objective-dependent label smoothing is custom
+        loss = self.schedule.compute_loss(inputs, outputs, labels)
 
-        mock_outputs = torch.tensor([-1, -1])
+        mock_outputs = torch.tensor([-1, -1])  # compatibility with Trainer.prediction_step return types
         return (loss, mock_outputs) if return_outputs else loss
 
     def log(self, logs: List[Dict[str, float]]) -> None:
         gc.collect(generation=0)
         self._objects_log()
-        
+
         is_eval_log = any(self.eval_metrics_prefix in log_key for log_key in logs)
         extended_logs = self.schedule.objectives_log(split="eval" if is_eval_log else "train")
         return super().log({**logs, **extended_logs})

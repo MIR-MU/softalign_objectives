@@ -284,7 +284,7 @@ class SequentialSchedule(Schedule):
         """
         Simple finite, single iteration over all objectives. Used by base Schedule for evaluation.
         :param objectives: Objectives to schedule.
-        :return:  Iterator over the given to objectives.
+        :return:  Iterator over the chosen to objectives.
         """
         for objective in objectives:
             for _ in range(objective.dataset_length["eval"]):
@@ -299,7 +299,7 @@ class ParallelSchedule(Schedule):
         """
         Sample objectives in parallel - choose objectives in Round Robin fashion.
         :param split: data split to iterate. `train` or `eval`. Currently, Schedule base uses only "train".
-        :return:
+        :return:  Iterator over the chosen to objectives
         """
         while True:
             for objective in self.objectives[split].values():

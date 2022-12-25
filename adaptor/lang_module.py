@@ -53,6 +53,9 @@ class LangModule(torch.nn.Module):
             new_head = AutoModelForTokenClassification.from_pretrained(model_name_or_path, **head_kwargs)
         elif head_type == Head.SEQ2SEQ:
             new_head = AutoModelForSeq2SeqLM.from_pretrained(model_name_or_path, **head_kwargs)
+        elif head_type == Head.SEQ2SEQ_ADAPTER:
+            from .new_objectives.adapters_seq2seq import AdapterTransformer
+            new_head = AdapterTransformer(model_name_or_path, **head_kwargs)
         elif head_type == Head.CLM:
             new_head = AutoModelForCausalLM.from_pretrained(model_name_or_path, **head_kwargs)
         elif head_type == Head.MLM:
