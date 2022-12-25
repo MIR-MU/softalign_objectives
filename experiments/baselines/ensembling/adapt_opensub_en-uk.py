@@ -18,8 +18,9 @@ tgt_lang = "uk"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
-val_firstn = 5
-test_firstn = 12
+val_firstn = 500
+test_firstn = 1000
+
 
 train_dataset_id = "OpenSubtitles"
 # we test on all the domains in the constructed collection
@@ -50,8 +51,8 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
-original_model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
-
+original_model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang)).to(
+    "cuda" if torch.cuda.is_available() else "cpu")
 metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [EnsembleBLEU(original_model=original_model, **metrics_args, decides_convergence=True),
