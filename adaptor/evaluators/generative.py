@@ -24,7 +24,7 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
     - this reassures a reproducibility of the results reported in the training logs.
     """
 
-    compatible_heads: List[Head] = [Head.SEQ2SEQ]
+    compatible_heads: List[Head] = [Head.SEQ2SEQ, Head.SEQ2SEQ_ADAPTER]
 
     def __init__(self,
                  use_generate: bool = True,
