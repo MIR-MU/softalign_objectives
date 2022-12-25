@@ -4,7 +4,7 @@ Implementations of the Sequence Alignment objectives, including the ablations.
 
 import itertools
 import logging
-from typing import Tuple, Iterator, Union, Dict, Optional, List, Iterable
+from typing import Tuple, Union, Dict, Optional, List, Iterable
 
 import torch
 from transformers import BatchEncoding, PreTrainedTokenizer, BertTokenizer
@@ -132,7 +132,8 @@ class AlignmentBase(Sequence2Sequence):
     def do_sample(self,
                   inputs: Union[Iterable[Dict[str, torch.Tensor]], BatchEncoding],
                   num_samples: int,
-                  collect_logits: Optional[bool] = False) -> Iterator[Tuple[torch.LongTensor, torch.FloatTensor]]:
+                  collect_logits: Optional[bool] = False) -> Tuple[torch.Tensor, torch.Tensor,
+                                                                   torch.Tensor, torch.Tensor]:
         """
         Samples a given set of translations using Monte Carlo.
         :return an iterator over tuples of [selected sequence, sequence score]
