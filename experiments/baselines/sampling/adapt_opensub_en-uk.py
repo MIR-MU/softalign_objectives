@@ -21,7 +21,6 @@ train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-
 train_dataset_id = "OpenSubtitles"
 # we test on all the domains in the constructed collection
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
@@ -110,6 +109,7 @@ for dataset_id in test_dataset_ids:
 
     test_objectives.append(new_eval_objective)
 
+# schedule = ParallelSchedule(objectives=training_objectives,
 schedule = LinearDecay(objectives=training_objectives,
                        extra_eval_objectives=test_objectives,
                        args=training_arguments)
