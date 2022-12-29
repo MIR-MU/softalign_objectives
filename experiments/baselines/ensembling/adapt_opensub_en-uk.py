@@ -1,13 +1,17 @@
+# TODO: original model can not get the encoder attentions of the trained model!
+# https://www.comet.com/stefanik12/soft-obj2/9cf88709be5a4f0d9f17249362f61277
+
+# citation: https://arxiv.org/pdf/1612.06897.pdf
+
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
-from transformers import AutoModelForSeq2SeqLM
-
 from adaptor.adapter import Adapter
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from experiments.baselines.ensembling.ensemble_evaluator import EnsembleBLEU, EnsembleROUGE, EnsembleBERTScore
+from transformers import AutoModelForSeq2SeqLM
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
