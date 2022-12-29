@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Any
 
 import torch
@@ -7,6 +8,8 @@ from ..objectives.objective_base import SupervisedObjective
 from ..objectives.seq2seq import Sequence2SequenceMixin
 from ..utils import Head
 
+logger = logging.getLogger()
+
 
 class Adapter(torch.nn.Module):
     """
@@ -15,7 +18,7 @@ class Adapter(torch.nn.Module):
     a nonlinearity, then project back to d dimensions.
     """
 
-    def __init__(self, in_dim=512, reduction_factor=2):
+    def __init__(self, in_dim=512, reduction_factor=32):
         super().__init__()
         self.adapter_block = torch.nn.Sequential(
             torch.nn.Linear(in_dim, in_dim // reduction_factor),
@@ -31,17 +34,18 @@ class Adapter(torch.nn.Module):
         return adapter_out
 
 
-class Adaptered(torch.nn.Module):
+class AdapterWrapper(torch.nn.Module):
     def __init__(self, orig_layer):
         super().__init__()
         self.orig_layer = orig_layer
+        # self.orig_layer.training = False
         self.adapter = Adapter(in_dim=self.orig_layer.out_features)
 
     def forward(self, *x):
         orig_out = self.orig_layer(*x)
-        output = (self.adapter.forward(orig_out[0].unsqueeze(0))[0])
+        adapter_output = self.adapter(orig_out)
 
-        return output
+        return adapter_output
 
 
 class AdapterTransformer(MarianMTModel):
@@ -58,12 +62,14 @@ class AdapterTransformer(MarianMTModel):
             params.requires_grad = False
         # Embed adapter layers into the transformer blocks
         for enc_layer in self.model.encoder.layers:
-            enc_layer.self_attn.out_proj = Adaptered(enc_layer.self_attn.out_proj)
-            enc_layer.fc2 = Adaptered(enc_layer.fc2)
+            enc_layer.self_attn.out_proj = AdapterWrapper(enc_layer.self_attn.out_proj)
+            enc_layer.fc2 = AdapterWrapper(enc_layer.fc2)
 
         for dec_layer in self.model.decoder.layers:
-            dec_layer.self_attn.out_proj = Adaptered(dec_layer.self_attn.out_proj)
-            dec_layer.fc2 = Adaptered(dec_layer.fc2)
+            dec_layer.self_attn.out_proj = AdapterWrapper(dec_layer.self_attn.out_proj)
+            dec_layer.fc2 = AdapterWrapper(dec_layer.fc2)
+
+        logger.warning("Initialized Adapter layers")
 
 
 class AdapterSequence2Sequence(Sequence2SequenceMixin, SupervisedObjective):
