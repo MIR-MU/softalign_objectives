@@ -1,3 +1,11 @@
+# TODO: this does not seem to work, check that everything works as expected, incl. objectives model sharing
+# https://www.comet.com/stefanik12/soft-obj2/e949cedbcb494a768fa848d23ca1486d
+
+# citations:
+# https://aclanthology.org/2021.acl-short.108.pdf
+# https://aclanthology.org/2021.wmt-1.64.pdf
+# https://arxiv.org/pdf/2210.11912.pdf
+
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 
@@ -31,7 +39,7 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-4,
+                                         learning_rate=2e-4,  # TODO: check
                                          # stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
