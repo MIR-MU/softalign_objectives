@@ -90,8 +90,8 @@ class EnsembleEvaluator(GenerativeEvaluator, abc.ABC):
                     0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
                 )
                 orig_encoder_outputs = model_kwargs["orig_encoder_outputs"]
-                orig_encoder_outputs["last_hidden_state"] = encoder_outputs.last_hidden_state.index_select(
-                    0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+                orig_encoder_outputs["last_hidden_state"] = orig_encoder_outputs.last_hidden_state.index_select(
+                    0, expanded_return_idx.to(orig_encoder_outputs.last_hidden_state.device)
                 )
                 model_kwargs["encoder_outputs"] = encoder_outputs
                 model_kwargs["orig_encoder_outputs"] = orig_encoder_outputs
