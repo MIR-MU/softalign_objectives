@@ -22,7 +22,7 @@ class ScheduledSampling(AlignmentBase):
         input_batch = {k: v for k, v in inputs.items() if k not in ("oid", "labels", "decoder_input_ids")}
 
         loss_inst = torch.nn.CrossEntropyLoss()
-        loss_vals = [torch.tensor(0., requires_grad=True)]
+        loss_vals = [torch.tensor(0., requires_grad=True, device=lm_logit_outputs.device)]
 
         # sample hypotheses
         translations_sampler = self.do_sample(input_batch, self.num_samples, collect_logits=True)
