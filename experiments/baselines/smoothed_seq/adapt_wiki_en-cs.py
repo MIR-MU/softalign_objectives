@@ -4,7 +4,6 @@ import torch
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
-from adaptor.new_objectives.smoothed_seq2seq import SmoothedSequence2Sequence
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
@@ -73,6 +72,7 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
@@ -82,18 +82,17 @@ for dataset_id in test_dataset_ids:
     train_dataset = OPUSDataset(dataset_id, "train", src_lang, tgt_lang, data_dir=data_dir, firstn=train_firstn)
     test_datasets.append(test_dataset)
 
-    new_eval_objective = SmoothedSequence2Sequence(lang_module,
-                                                   texts_or_path=train_dataset.source,
-                                                   labels_or_path=train_dataset.source,
-                                                   val_texts_or_path=test_dataset.source,
-                                                   val_labels_or_path=test_dataset.target,
-                                                   source_lang_id=src_lang,
-                                                   target_lang_id=tgt_lang,
-                                                   batch_size=10,
-                                                   val_evaluators=val_metrics,
-                                                   share_other_objective_head=train_mle,
-                                                   objective_id="%s-%s" % (
-                                                   test_dataset.split, test_dataset.domain_label))
+    new_eval_objective = Sequence2Sequence(lang_module,
+                                           texts_or_path=train_dataset.source,
+                                           labels_or_path=train_dataset.source,
+                                           val_texts_or_path=test_dataset.source,
+                                           val_labels_or_path=test_dataset.target,
+                                           source_lang_id=src_lang,
+                                           target_lang_id=tgt_lang,
+                                           batch_size=10,
+                                           val_evaluators=val_metrics,
+                                           share_other_objective_head=train_mle,
+                                           objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
 
     test_objectives.append(new_eval_objective)
 

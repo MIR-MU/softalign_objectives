@@ -55,8 +55,7 @@ metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-# declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-
+# training objectives:
 # validations are also computed by the training MLE objective
 train_mle = SmoothedSequence2Sequence(lang_module,
                                       texts_or_path=train_dataset.source,
@@ -74,6 +73,7 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data

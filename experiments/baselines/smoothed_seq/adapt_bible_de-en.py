@@ -74,6 +74,7 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
@@ -90,7 +91,7 @@ for dataset_id in test_dataset_ids:
                                            val_labels_or_path=test_dataset.target,
                                            source_lang_id=src_lang,
                                            target_lang_id=tgt_lang,
-                                           batch_size=30,
+                                           batch_size=10,
                                            val_evaluators=val_metrics,
                                            share_other_objective_head=train_mle,
                                            objective_id="%s-%s" % (test_dataset.split, test_dataset.domain_label))
