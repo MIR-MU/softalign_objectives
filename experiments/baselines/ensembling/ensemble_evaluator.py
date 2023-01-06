@@ -3,11 +3,12 @@ import types
 from typing import Dict, Any, Tuple
 
 import torch
-from adaptor.evaluators.generative import GenerativeEvaluator, BLEU, BERTScore, ROUGE
-from adaptor.utils import AdaptationDataset
 from transformers import PreTrainedModel, PreTrainedTokenizer, MarianMTModel
 from transformers.file_utils import ModelOutput
 from transformers.modeling_outputs import Seq2SeqLMOutput
+
+from adaptor.evaluators.generative import GenerativeEvaluator, BLEU, BERTScore, ROUGE
+from adaptor.utils import AdaptationDataset
 
 
 class EnsembleEvaluator(GenerativeEvaluator, abc.ABC):
@@ -24,6 +25,7 @@ class EnsembleEvaluator(GenerativeEvaluator, abc.ABC):
             orig_args = {k.replace("orig_", ""): v for k, v in orig_args.items()}
 
             trained_args = {k: v for k, v in kwargs.items() if v is not None and not k.startswith("orig")}
+            assert id(trained_args["encoder_outputs"]) != id(orig_args["encoder_outputs"])
 
             orig_output = MarianMTModel.forward(orig_model, **orig_args)
             trained_output = MarianMTModel.forward(trained_model, **trained_args)

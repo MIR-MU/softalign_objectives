@@ -1,8 +1,3 @@
-# TODO: original model can not get the encoder attentions of the trained model!
-# https://www.comet.com/stefanik12/soft-obj2/9cf88709be5a4f0d9f17249362f61277
-
-# citation: https://arxiv.org/pdf/1612.06897.pdf
-
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 from transformers import AutoModelForSeq2SeqLM
@@ -16,19 +11,19 @@ from experiments.baselines.ensembling.ensemble_evaluator import EnsembleBLEU, En
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "ensembling_opensub"
+experiment_id = "ensembling_ted"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "zh"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+train_dataset_id = "TED"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -57,7 +52,7 @@ lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
 original_model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang)).to(
     "cuda" if torch.cuda.is_available() else "cpu")
-metrics_args = {"additional_sep_char": "▁"}
+metrics_args = {"additional_sep_char": "▁", "symbolic_lang": True}
 
 val_metrics = [EnsembleBLEU(original_model=original_model, **metrics_args, decides_convergence=True),
                EnsembleROUGE(original_model=original_model, **metrics_args),

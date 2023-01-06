@@ -1,8 +1,3 @@
-# TODO: original model can not get the encoder attentions of the trained model!
-# https://www.comet.com/stefanik12/soft-obj2/9cf88709be5a4f0d9f17249362f61277
-
-# citation: https://arxiv.org/pdf/1612.06897.pdf
-
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 from transformers import AutoModelForSeq2SeqLM
@@ -16,19 +11,20 @@ from experiments.baselines.ensembling.ensemble_evaluator import EnsembleBLEU, En
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "ensembling_opensub"
+experiment_id = "ensembling_dgt"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "de"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+
+train_dataset_id = "DGT"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
+test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -81,7 +77,6 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
-# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
