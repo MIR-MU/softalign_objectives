@@ -1,8 +1,3 @@
-# citations:
-# https://aclanthology.org/2021.acl-short.108.pdf
-# https://aclanthology.org/2021.wmt-1.64.pdf
-# https://arxiv.org/pdf/2210.11912.pdf
-
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 
@@ -15,19 +10,20 @@ from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "adapters_opensub"
+experiment_id = "adapters_emea"
 
-src_lang = "en"
-tgt_lang = "uk"
+src_lang = "es"
+tgt_lang = "en"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+
+train_dataset_id = "EMEA"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
+test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -76,7 +72,6 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
-# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data

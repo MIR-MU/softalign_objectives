@@ -1,8 +1,3 @@
-# citations:
-# https://aclanthology.org/2021.acl-short.108.pdf
-# https://aclanthology.org/2021.wmt-1.64.pdf
-# https://arxiv.org/pdf/2210.11912.pdf
-
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 
@@ -15,19 +10,19 @@ from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "adapters_opensub"
+experiment_id = "adapters_ted"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "zh"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+train_dataset_id = "TEDTalks"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -43,7 +38,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=400000,
-                                         gradient_accumulation_steps=3,
+                                         gradient_accumulation_steps=2,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -54,7 +49,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
-metrics_args = {"additional_sep_char": "▁"}
+metrics_args = {"additional_sep_char": "▁", "symbolic_lang": True}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
