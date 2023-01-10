@@ -18,13 +18,20 @@ class Adapter(torch.nn.Module):
     a nonlinearity, then project back to d dimensions.
     """
 
-    def __init__(self, in_dim=512, reduction_factor=32):
+    def __init__(self, in_dim=512, reduction_factor=32, weights_init_std: float = 10e-2):
         super().__init__()
         self.adapter_block = torch.nn.Sequential(
             torch.nn.Linear(in_dim, in_dim // reduction_factor),
             torch.nn.ReLU(),
-            torch.nn.Linear(in_dim // reduction_factor, in_dim)
+            torch.nn.Linear(in_dim // reduction_factor, in_dim),
         )
+        for layer in self.adapter_block:
+            with torch.no_grad():
+                if hasattr(layer, "weight"):  # applies to i \in [0, 2]
+                    torch.nn.init.normal_(layer.weight, mean=0, std=weights_init_std)
+                    # prune to 2x STD (Houlsby et al, 2019)
+                    layer.weight[layer.weight < -weights_init_std*2] = -weights_init_std*2
+                    layer.weight[layer.weight > weights_init_std*2] = weights_init_std*2
 
     def forward(self, x):
         ff_out = self.adapter_block(x)
