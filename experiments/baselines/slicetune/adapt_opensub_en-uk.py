@@ -11,15 +11,15 @@ from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "seq_opensub"
+experiment_id = "slice_opensub"
 
 src_lang = "en"
 tgt_lang = "uk"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
-val_firstn = 500
-test_firstn = 1000
+val_firstn = 5
+test_firstn = 10
 
 train_dataset_id = "OpenSubtitles"
 # we test on all the domains in the constructed collection
@@ -39,9 +39,9 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=400000,
-                                         gradient_accumulation_steps=2,
+                                         gradient_accumulation_steps=3,
                                          logging_steps=50,
-                                         eval_steps=1,  # TODO set
+                                         eval_steps=500,
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -54,8 +54,7 @@ metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-# declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-
+# training objectives:
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
                               texts_or_path=train_dataset.source,
@@ -64,18 +63,16 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=3,  # TODO set
+                              batch_size=10,  # TODO set
                               val_evaluators=val_metrics,
                               objective_id=train_dataset_id)
-
-slicetune.patch_linears(lang_module, tuner_size=0.3)
-slicetune.mark_for_training(lang_module)
 
 training_objectives = [train_mle]
 
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
@@ -102,6 +99,10 @@ for dataset_id in test_dataset_ids:
 schedule = ParallelSchedule(objectives=training_objectives,
                             extra_eval_objectives=test_objectives,
                             args=training_arguments)
+
+slicetune.patch_linears(next(iter(lang_module.trainable_models.values())), tuner_size=0.3)
+slicetune.mark_for_training(lang_module)
+print(slicetune.pretty_describe(lang_module))
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()
