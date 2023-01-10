@@ -1,6 +1,6 @@
 import abc
 from functools import lru_cache
-from typing import List, Sequence, Optional, Dict, Iterator, Union
+from typing import List, Sequence, Optional, Dict, Iterator, Union, Tuple
 
 import numpy as np
 import torch
@@ -14,33 +14,9 @@ from .prism import Prism
 from ..utils import Head, AdaptationDataset
 
 
-class GenerativeEvaluator(EvaluatorBase, abc.ABC):
-    """
-    Base class for all Evaluators of generative networks.
-    It takes care of relatively expensive generation over evaluation dataset batches (if `use_generate=True`),
-    and a caching of its results among multiple evaluators.
-    You need to override only a `evaluate_str` method to implement a new instance of generative evaluator.
-    `evaluate_str` method can also be used for an independent evaluation of a given model on a given Dataset
-    - this reassures a reproducibility of the results reported in the training logs.
-    """
-
-    compatible_heads: List[Head] = [Head.SEQ2SEQ, Head.SEQ2SEQ_ADAPTER]
-
-    def __init__(self,
-                 use_generate: bool = True,
-                 progress_bar: Optional[bool] = True,
-                 decides_convergence: Optional[bool] = False,
-                 additional_sep_char: Optional[str] = None,
-                 symbolic_lang: bool = False):
-        super().__init__(decides_convergence)
-
-        self.additional_sep_char = additional_sep_char
-        self.use_generate = use_generate
-        self.progress_bar = progress_bar
-        self.symbolic_lang = symbolic_lang
+class GenerationUtils:
 
     @staticmethod
-    @lru_cache(maxsize=10000)
     def _autoregressive_predict_one(input_ids: torch.LongTensor,
                                     attention_mask: torch.LongTensor,
                                     model: torch.nn.Module,
@@ -62,8 +38,8 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         else:
             return model.generate(input_ids=input_ids, attention_mask=attention_mask).detach().cpu()
 
-    def _autoregressive_predict(self,
-                                model: torch.nn.Module,
+    @staticmethod
+    def _autoregressive_predict(model: torch.nn.Module,
                                 inputs_batch: Dict[str, torch.LongTensor],
                                 tokenizer: PreTrainedTokenizer) -> Iterator[torch.LongTensor]:
         """
@@ -76,8 +52,9 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         assert hasattr(model, "generate"), "If Evaluator(use_generate=True), " \
                                            "evaluated model must have its generate() method."
 
-        return self._autoregressive_predict_one(inputs_batch["input_ids"], inputs_batch["attention_mask"],
-                                                model, tokenizer)
+        return GenerationUtils._autoregressive_predict_one(inputs_batch["input_ids"],
+                                                           inputs_batch["attention_mask"],
+                                                           model, tokenizer)
 
     @staticmethod
     def _argmax_predict(model: torch.nn.Module,
@@ -92,26 +69,75 @@ class GenerativeEvaluator(EvaluatorBase, abc.ABC):
         outputs = model(**inputs).logits
         return torch.argmax(outputs, -1)
 
-    def __call__(self, model: torch.nn.Module, tokenizer: PreTrainedTokenizer, dataset: AdaptationDataset) -> float:
-        """
-        Refer to the superclass documentation.
-        """
+    @staticmethod
+    @lru_cache(maxsize=10000)
+    def collect_seq2seq_predictions_cached(model: torch.nn.Module,
+                                           tokenizer: PreTrainedTokenizer,
+                                           dataset: AdaptationDataset,
+                                           use_generate: bool) -> Tuple[List[str], List[str]]:
+        return GenerationUtils.collect_seq2seq_predictions(model, tokenizer, dataset, use_generate)
+
+    @staticmethod
+    def collect_seq2seq_predictions(model: torch.nn.Module,
+                                    tokenizer: PreTrainedTokenizer,
+                                    dataset: AdaptationDataset,
+                                    use_generate: bool) -> Tuple[List[str], List[str]]:
         expected_str = []
         actual_str = []
 
         for batch in dataset:
             with torch.no_grad():
-                if self.use_generate:
+                if use_generate:
 
-                    output_tokens = self._autoregressive_predict(model, batch, tokenizer)
+                    output_tokens = GenerationUtils._autoregressive_predict(model, batch, tokenizer)
                 else:
-                    output_tokens = self._argmax_predict(model, batch)
+                    output_tokens = GenerationUtils._argmax_predict(model, batch)
             # replace -100 labels (excluded from the loss), otherwise encoded as unknown tokens
             batch["labels"][batch["labels"] < 0] = tokenizer.pad_token_id
 
             expected_str.extend(tokenizer.batch_decode(batch["labels"], skip_special_tokens=True))
             actual_str.extend(tokenizer.batch_decode(output_tokens, skip_special_tokens=True))
 
+        return expected_str, actual_str
+
+
+class GenerativeEvaluator(EvaluatorBase, abc.ABC):
+    """
+    Base class for all Evaluators of generative networks.
+    It takes care of relatively expensive generation over evaluation dataset batches (if `use_generate=True`),
+    and a caching of its results among multiple evaluators.
+    You need to override only a `evaluate_str` method to implement a new instance of generative evaluator.
+    `evaluate_str` method can also be used for an independent evaluation of a given model on a given Dataset
+    - this reassures a reproducibility of the results reported in the training logs.
+    """
+
+    compatible_heads: List[Head] = [Head.SEQ2SEQ, Head.SEQ2SEQ_ADAPTER]
+
+    def __init__(self,
+                 use_generate: bool = True,
+                 use_cache: bool = True,
+                 progress_bar: Optional[bool] = True,
+                 decides_convergence: Optional[bool] = False,
+                 additional_sep_char: Optional[str] = None,
+                 symbolic_lang: bool = False):
+        super().__init__(decides_convergence)
+
+        self.additional_sep_char = additional_sep_char
+        self.use_generate = use_generate
+        self.use_cache = use_cache
+        self.progress_bar = progress_bar
+        self.symbolic_lang = symbolic_lang
+
+    def __call__(self, model: torch.nn.Module, tokenizer: PreTrainedTokenizer, dataset: AdaptationDataset) -> float:
+        """
+        Refer to the superclass documentation.
+        """
+        if self.use_cache:
+            expected_str, actual_str = GenerationUtils.collect_seq2seq_predictions_cached(model, tokenizer, dataset,
+                                                                                          self.use_generate)
+        else:
+            expected_str, actual_str = GenerationUtils.collect_seq2seq_predictions(model, tokenizer, dataset,
+                                                                                   self.use_generate)
         if self.symbolic_lang:
             # consider characters as words in the case of symbolic languages
             expected_str = [" ".join(expected_one) for expected_one in expected_str]

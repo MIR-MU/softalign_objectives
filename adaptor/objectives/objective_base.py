@@ -1,10 +1,8 @@
 import abc
-import gc
 import itertools
 import logging
 from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence, Any
 
-import numpy as np
 import torch
 from tqdm import trange
 from transformers import BatchEncoding
@@ -336,7 +334,8 @@ class Objective(abc.ABC):
         if show_progressbar:
             device_inputs_iter = map(_update_pbar, device_inputs_iter)
 
-        return TransformerAdaptationDataset(device_inputs_iter, self.dataset_length[split])
+        dataset_hash = hash(self) + hash(split) + self.num_steps
+        return TransformerAdaptationDataset(device_inputs_iter, self.dataset_length[split], objective_hash=dataset_hash)
 
     def compute_loss_on_last_sample(self) -> torch.FloatTensor:
         """
