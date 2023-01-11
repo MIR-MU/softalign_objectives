@@ -25,7 +25,8 @@ class EnsembleEvaluator(GenerativeEvaluator, abc.ABC):
             orig_args = {k.replace("orig_", ""): v for k, v in orig_args.items()}
 
             trained_args = {k: v for k, v in kwargs.items() if v is not None and not k.startswith("orig")}
-            assert id(trained_args["encoder_outputs"]) != id(orig_args["encoder_outputs"])
+            if "encoder_outputs" in trained_args and "encoder_outputs" in orig_args:
+                assert id(trained_args["encoder_outputs"]) != id(orig_args["encoder_outputs"])
 
             orig_output = MarianMTModel.forward(orig_model, **orig_args)
             trained_output = MarianMTModel.forward(trained_model, **trained_args)
