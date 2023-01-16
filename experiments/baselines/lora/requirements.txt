@@ -1,1 +1,1 @@
-loralib
+loralib==0.1.1

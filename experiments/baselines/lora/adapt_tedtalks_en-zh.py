@@ -1,11 +1,14 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
+import loralib
 import torch
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
+from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
+from experiments.baselines.lora.lora_utils import patch_linears_with_lora
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
