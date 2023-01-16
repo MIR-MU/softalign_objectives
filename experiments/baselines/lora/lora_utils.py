@@ -65,7 +65,7 @@ def patch_linears_with_lora(
             if module.bias is not None:
                 replacement.bias[:] = module.bias
 
-            test_input = torch.rand(2, module.in_features)
+            test_input = torch.rand(2, module.in_features).to(module.weight.device)
             assert torch.allclose(module(test_input), replacement(test_input))
 
         if was_module_training:
