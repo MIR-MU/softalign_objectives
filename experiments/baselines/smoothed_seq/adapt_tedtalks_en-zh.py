@@ -21,7 +21,7 @@ train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "TEDTalks"
+train_dataset_id = "TED"
 # we test on all the domains in the constructed collection
 test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
@@ -127,6 +127,12 @@ for test_dataset in test_datasets:
         outputs = translator_model.generate(**inputs)
         translations = lang_module.tokenizer.batch_decode(outputs, remove_special_tokens=True)
         hypotheses.append(translations[0])
+
+    from datetime import datetime
+    translations_file = "%s-%s.txt" % (experiment_id, datetime.now().strftime("%m%d-%H%M%S"))
+    with open(translations_file, "w") as out_f:
+        print("Writing translations to %s" % translations_file)
+        out_f.writelines(hypotheses)
 
     metrics_values = {str(metric): metric.evaluate_str(references, hypotheses) for metric in val_metrics}
     print("Experiment %s Test metrics on %s (%s->%s) test scores: %s" %

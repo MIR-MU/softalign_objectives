@@ -1,6 +1,5 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
-# import gc
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
@@ -10,6 +9,8 @@ from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset
+
+# import gc
 
 # torch.autograd.set_detect_anomaly(True)
 # gc.set_debug(gc.DEBUG_LEAK)
@@ -101,7 +102,7 @@ seq_opensub = Sequence2Sequence(lang_module,
                                 batch_size=32,
                                 val_evaluators=val_metrics,
                                 share_other_objective_head=tokenbsc_wiki,
-                                objective_id="Opensub")
+                                objective_id="OpenSubtitles")
 
 seq_bible = Sequence2Sequence(lang_module,
                               texts_or_path=bible_pairs.source,

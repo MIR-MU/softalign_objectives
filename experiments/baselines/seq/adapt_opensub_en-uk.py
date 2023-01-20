@@ -40,7 +40,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          max_steps=400000,
                                          gradient_accumulation_steps=2,
                                          logging_steps=50,
-                                         eval_steps=500,  # TODO set
+                                         eval_steps=1,  # TODO set
                                          save_steps=5000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
@@ -63,7 +63,7 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=30,  # TODO set
+                              batch_size=3,  # TODO set
                               val_evaluators=val_metrics,
                               objective_id=train_dataset_id)
 

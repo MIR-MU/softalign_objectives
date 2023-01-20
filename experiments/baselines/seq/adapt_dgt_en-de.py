@@ -1,33 +1,29 @@
-# citations:
-# https://proceedings.neurips.cc/paper/2015/file/e995f98d56967d946471af29d7bf99f1-Paper.pdf
-# https://aclanthology.org/P19-1426.pdf
-
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
-from adaptor.new_objectives.sentence_sampling import ScheduledSampling
 from adaptor.objectives.seq2seq import Sequence2Sequence
+from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
-from experiments.baselines.sampling.scheduler import LinearDecay
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
-experiment_id = "sampling"
+experiment_id = "seq_emea"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "de"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "OpenSubtitles"
+
+train_dataset_id = "DGT"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["EMEA", "DGT"]]
+test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -42,8 +38,8 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
-                                         max_steps=25000,  # TODO: set num-steps more precisely, for schedule
-                                         gradient_accumulation_steps=30,
+                                         max_steps=400000,
+                                         gradient_accumulation_steps=2,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -68,24 +64,11 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=1,
+                              batch_size=30,
                               val_evaluators=val_metrics,
                               objective_id=train_dataset_id)
 
-scheduled_sampling = ScheduledSampling(lang_module,
-                                       num_samples=20,
-                                       evaluator=val_metrics[0],
-                                       texts_or_path=train_dataset.source,
-                                       labels_or_path=train_dataset.target,
-                                       val_texts_or_path=val_dataset.source,
-                                       val_labels_or_path=val_dataset.target,
-                                       source_lang_id=src_lang,
-                                       target_lang_id=tgt_lang,
-                                       batch_size=1,
-                                       val_evaluators=val_metrics,
-                                       objective_id=train_dataset_id)
-
-training_objectives = [train_mle, scheduled_sampling]
+training_objectives = [train_mle]
 
 test_datasets = []
 test_objectives = []
@@ -113,10 +96,9 @@ for dataset_id in test_dataset_ids:
 
     test_objectives.append(new_eval_objective)
 
-# schedule = ParallelSchedule(objectives=training_objectives,
-schedule = LinearDecay(objectives=training_objectives,
-                       extra_eval_objectives=test_objectives,
-                       args=training_arguments)
+schedule = ParallelSchedule(objectives=training_objectives,
+                            extra_eval_objectives=test_objectives,
+                            args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()

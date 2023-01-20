@@ -9,20 +9,18 @@ from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
-
 data_dir = "utils"
-experiment_id = "seq_emea"
+experiment_id = "seq_wiki"
 
 src_lang = "en"
-tgt_lang = "de"
+tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-
-train_dataset_id = "DGT"
+train_dataset_id = "wikimedia"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -55,8 +53,7 @@ metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-# declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-
+# training objectives:
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
                               texts_or_path=train_dataset.source,
