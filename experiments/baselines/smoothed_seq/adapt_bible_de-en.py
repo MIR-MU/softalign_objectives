@@ -4,25 +4,24 @@ import torch
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
+from adaptor.new_objectives.smoothed_seq2seq import SmoothedSequence2Sequence
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
-
 data_dir = "utils"
-experiment_id = "seq_emea"
+experiment_id = "seq_dgt"
 
-src_lang = "en"
-tgt_lang = "de"
+src_lang = "de"
+tgt_lang = "en"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-
-train_dataset_id = "DGT"
+train_dataset_id = "Bible"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -45,6 +44,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          eval_steps=500,
                                          save_steps=5000,
                                          num_train_epochs=30,
+                                         label_smoothing_factor=0.1,
                                          evaluation_strategy="steps",
                                          also_log_converged_objectives=True)
 
@@ -58,22 +58,23 @@ val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_a
 # declaration of *all* used objectives: both training and evaluation ones (see configurations below)
 
 # validations are also computed by the training MLE objective
-train_mle = Sequence2Sequence(lang_module,
-                              texts_or_path=train_dataset.source,
-                              labels_or_path=train_dataset.target,
-                              val_texts_or_path=val_dataset.source,
-                              val_labels_or_path=val_dataset.target,
-                              source_lang_id=src_lang,
-                              target_lang_id=tgt_lang,
-                              batch_size=30,
-                              val_evaluators=val_metrics,
-                              objective_id=train_dataset_id)
+train_mle = SmoothedSequence2Sequence(lang_module,
+                                      texts_or_path=train_dataset.source,
+                                      labels_or_path=train_dataset.target,
+                                      val_texts_or_path=val_dataset.source,
+                                      val_labels_or_path=val_dataset.target,
+                                      source_lang_id=src_lang,
+                                      target_lang_id=tgt_lang,
+                                      batch_size=30,
+                                      val_evaluators=val_metrics,
+                                      objective_id=train_dataset_id)
 
 training_objectives = [train_mle]
 
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data

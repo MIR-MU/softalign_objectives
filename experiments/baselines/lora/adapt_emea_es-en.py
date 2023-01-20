@@ -1,28 +1,29 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
+import loralib
 import torch
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
 from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
-from adaptor.new_objectives.seq_bertscr_objectives import SeqAlignObjective
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
+from experiments.baselines.lora.lora_utils import patch_linears_with_lora
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
-
 data_dir = "utils"
-experiment_id = "seq_wiki"
+experiment_id = "lora_emea"
 
-src_lang = "en"
-tgt_lang = "cs"
+src_lang = "es"
+tgt_lang = "en"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "wikimedia"
+
+train_dataset_id = "EMEA"
 # we test on all the domains in the constructed collection
 test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
@@ -33,14 +34,14 @@ train_dataset = OPUSDataset(train_dataset_id, "train", src_lang, tgt_lang, data_
 # 2. Initialize training arguments
 # We apply NUM_STEPS stopping strategy in cases where at least one of the objectives does not converge in max_steps
 training_arguments = AdaptationArguments(output_dir=experiment_id,
-                                         learning_rate=2e-5,  # we set LR=2e-4 for pre-training experiments
+                                         learning_rate=2e-4,
                                          # stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          stopping_strategy=StoppingStrategy.NUM_STEPS_ALL_OBJECTIVES,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=1000,
                                          max_steps=400000,
-                                         gradient_accumulation_steps=2,
+                                         gradient_accumulation_steps=3,
                                          logging_steps=50,
                                          eval_steps=500,
                                          save_steps=5000,
@@ -55,19 +56,7 @@ metrics_args = {"additional_sep_char": "▁"}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-# declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-train_obj = SeqAlignObjective(lang_module,
-                              texts_or_path=train_dataset.source,
-                              labels_or_path=train_dataset.target,
-                              val_texts_or_path=val_dataset.source[:20],
-                              val_labels_or_path=val_dataset.target[:20],
-                              source_lang_id=src_lang,
-                              target_lang_id=tgt_lang,
-                              batch_size=1,
-                              objective_id=train_dataset_id,
-                              loss_weight=100,
-                              remember_last_input=True)
-
+# training objectives:
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
                               texts_or_path=train_dataset.source,
@@ -76,7 +65,7 @@ train_mle = Sequence2Sequence(lang_module,
                               val_labels_or_path=val_dataset.target,
                               source_lang_id=src_lang,
                               target_lang_id=tgt_lang,
-                              batch_size=30,
+                              batch_size=10,
                               val_evaluators=val_metrics,
                               objective_id=train_dataset_id)
 
@@ -85,6 +74,7 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
@@ -113,6 +103,16 @@ schedule = ParallelSchedule(objectives=training_objectives,
                             args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
+
+patch_linears_with_lora(lang_module, r=16)
+
+lang_module.train()
+loralib.mark_only_lora_as_trainable(lang_module)
+
+trainables = {n: p for n, p in lang_module.named_parameters() if p.requires_grad}
+loras = {n: p for n, p in lang_module.named_parameters() if "lora_" in n}
+assert set(loras.keys()) == set(trainables.keys()), "Only LoRa weights should be set to be trained"
+
 adapter.train()
 
 adapter.save_model(experiment_id)
@@ -138,6 +138,12 @@ for test_dataset in test_datasets:
         outputs = translator_model.generate(**inputs)
         translations = lang_module.tokenizer.batch_decode(outputs, remove_special_tokens=True)
         hypotheses.append(translations[0])
+
+    from datetime import datetime
+    translations_file = "%s-%s.txt" % (experiment_id, datetime.now().strftime("%m%d-%H%M%S"))
+    with open(translations_file, "w") as out_f:
+        print("Writing translations to %s" % translations_file)
+        out_f.writelines(hypotheses)
 
     metrics_values = {str(metric): metric.evaluate_str(references, hypotheses) for metric in val_metrics}
     print("Experiment %s Test metrics on %s (%s->%s) test scores: %s" %

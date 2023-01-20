@@ -13,7 +13,7 @@ OPUS_RESOURCES_URLS = {
     "Bible": "https://object.pouta.csc.fi/OPUS-bible-uedin/v1/moses/%s-%s.txt.zip",
     "EMEA": "https://opus.nlpl.eu/download.php?f=EMEA/v3/moses/%s-%s.txt.zip",
     "DGT": "https://opus.nlpl.eu/download.php?f=DGT/v2019/moses/%s-%s.txt.zip",
-    "TEDTalks": "https://object.pouta.csc.fi/OPUS-TED2013/v1.1/moses/%s-%s.txt.zip"
+    "TED": "https://object.pouta.csc.fi/OPUS-TED2020/v1/moses/%s-%s.txt.zip",
 }
 
 # asserting the set, we make sure that no duplicates are loaded among the resources
@@ -77,11 +77,15 @@ class OPUSDataset(DataSource):
         if self.skip_seen_duplicates:
             src_lines, tgt_lines = self._deduplicate(src_lines, tgt_lines)
 
-        if firstn is not None:
-            src_lines = src_lines[:firstn]
-            tgt_lines = tgt_lines[:firstn]
+        # skip entries with empty src or tgt
+        src_lines_nonempty = [src_l for src_l, tgt_l in zip(src_lines, tgt_lines) if src_l.strip() and tgt_l.strip()]
+        tgt_lines_nonempty = [tgt_l for src_l, tgt_l in zip(src_lines, tgt_lines) if src_l.strip() and tgt_l.strip()]
 
-        return src_lines, tgt_lines
+        if firstn is not None:
+            src_lines_nonempty = src_lines_nonempty[:firstn]
+            tgt_lines_nonempty = tgt_lines_nonempty[:firstn]
+
+        return src_lines_nonempty, tgt_lines_nonempty
 
     def _maybe_download_unzip(self) -> Tuple[str, str]:
         src_suffix = "%s-%s.%s" % (self.ordered_lang_pair[0], self.ordered_lang_pair[1], self.src_lang)

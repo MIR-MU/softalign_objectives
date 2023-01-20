@@ -13,7 +13,8 @@ class Head(Enum):
     SEQ2SEQ = 4
     CLM = 5
     MLM = 6
-    UNKNOWN = 7
+    SEQ2SEQ_ADAPTER = 7
+    UNKNOWN = 8
 
 
 class StoppingStrategy(Enum):
@@ -49,12 +50,19 @@ class AdaptationDataset(IterableDataset, abc.ABC):
 
 class TransformerAdaptationDataset(AdaptationDataset):
 
-    def __init__(self, batch_encoding_params: Iterable[Dict[str, torch.LongTensor]], length: Optional[int] = None):
+    def __init__(self,
+                 batch_encoding_params: Iterable[Dict[str, torch.LongTensor]],
+                 length: Optional[int] = None,
+                 objective_hash: Optional[int] = None):
         """
         :param batch_encoding_params: Arguments to be passed to BatchEncoding (input_ids, attention_mask, labels)
+        :param objective_hash: Objective hash, to be used as a hash of this dataset; Used for caching evaluated
+                               predictions between evaluators.
+        :param length: If given, the dataset object will get assigned the length for reporting.
         """
         super().__init__(length)
         self.batch_encoding_params = batch_encoding_params
+        self.objective_hash = objective_hash
 
     def __iter__(self) -> Iterator[Dict[str, torch.LongTensor]]:
         """
@@ -72,6 +80,18 @@ class TransformerAdaptationDataset(AdaptationDataset):
                     yield encoded_sample
             else:
                 yield encoded_sample
+
+    def __hash__(self) -> int:
+        if self.objective_hash is not None:
+            return self.objective_hash
+        else:
+            return hash(super(TransformerAdaptationDataset, self))
+
+    def __eq__(self, other) -> bool:
+        if self.objective_hash is not None and other.objective_hash is not None:
+            return self.objective_hash == other.objective_hash
+        else:
+            return super(TransformerAdaptationDataset, self).__eq__(other)
 
 
 class AdaptationArguments(TrainingArguments):

@@ -1,6 +1,5 @@
 import comet_ml  # logging hook must be imported before torch # noqa F401
 import torch
-from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 from adaptor.adapter import Adapter
 from adaptor.evaluators.generative import BLEU, ROUGE, BERTScore
@@ -8,21 +7,22 @@ from adaptor.lang_module import LangModule
 from adaptor.objectives.seq2seq import Sequence2Sequence
 from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
+from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
 data_dir = "utils"
 experiment_id = "seq_wiki"
 
 src_lang = "en"
-tgt_lang = "zh"
+tgt_lang = "cs"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-train_dataset_id = "TEDTalks"
+train_dataset_id = "wikimedia"
 # we test on all the domains in the constructed collection
-test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
+test_dataset_ids = OPUS_RESOURCES_URLS.keys()
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -43,6 +43,7 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
                                          eval_steps=500,
                                          save_steps=5000,
                                          num_train_epochs=30,
+                                         label_smoothing_factor=0.1,
                                          evaluation_strategy="steps",
                                          also_log_converged_objectives=True)
 

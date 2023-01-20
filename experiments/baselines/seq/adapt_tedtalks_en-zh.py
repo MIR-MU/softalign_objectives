@@ -9,22 +9,20 @@ from adaptor.schedules import ParallelSchedule
 from adaptor.utils import AdaptationArguments, StoppingStrategy
 from utils.data_utils_opus import OPUSDataset, OPUS_RESOURCES_URLS
 
-
 data_dir = "utils"
-experiment_id = "seq_opensub"
+experiment_id = "seq_wiki"
 
 src_lang = "en"
-tgt_lang = "uk"
+tgt_lang = "zh"
 
 # 1. Load OPUS domain-specific data sets
 train_firstn = None  # no limit
 val_firstn = 500
 test_firstn = 1000
 
-
-train_dataset_id = "Opensub"
+train_dataset_id = "TEDTalks"
 # we test on all the domains in the constructed collection
-test_dataset_ids = OPUS_RESOURCES_URLS.keys()
+test_dataset_ids = [d for d in OPUS_RESOURCES_URLS.keys() if d not in ["OpenSubtitles", "EMEA", "DGT"]]
 
 # reordering of the data sets gives priority to the first one in deduplication
 val_dataset = OPUSDataset(train_dataset_id, "val", src_lang, tgt_lang, data_dir=data_dir, firstn=val_firstn)
@@ -51,12 +49,11 @@ training_arguments = AdaptationArguments(output_dir=experiment_id,
 # we initialise base model from HF model
 lang_module = LangModule("Helsinki-NLP/opus-mt-%s-%s" % (src_lang, tgt_lang))
 
-metrics_args = {"additional_sep_char": "▁"}
+metrics_args = {"additional_sep_char": "▁", "symbolic_lang": True}
 
 val_metrics = [BLEU(**metrics_args, decides_convergence=True), ROUGE(**metrics_args), BERTScore(**metrics_args)]
 
-# declaration of *all* used objectives: both training and evaluation ones (see configurations below)
-
+# training objectives:
 # validations are also computed by the training MLE objective
 train_mle = Sequence2Sequence(lang_module,
                               texts_or_path=train_dataset.source,
@@ -74,6 +71,7 @@ training_objectives = [train_mle]
 test_datasets = []
 test_objectives = []
 
+# evaluation objectives:
 for dataset_id in test_dataset_ids:
     if dataset_id == train_dataset_id:
         # train domain evaluated by train evaluator; deduplication would make a new objective with empty data
