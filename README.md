@@ -1,17 +1,17 @@
-# Soft Alignment Objectives for Robust Adaptation in Machine Translation
+# Soft Alignment Objectives for Robust Adaptation of Language Generation
 
-This repository contains implementations of soft alignment objectives proposed in paper *Soft Alignment Objectives for Robust Adaptation in Machine Translation*
-and the reproducible scripts for collecting the results reported in the paper.
+This repository contains implementations of soft alignment objectives proposed in paper titled **[Soft Alignment Objectives for Robust Adaptation of Language Generation](https://arxiv.org/abs/2211.16550)**
+presented on [The 61st Annual Meeting of the ACL (2023) in Toronto](https://2023.aclweb.org).
 
-For easier readability and reproducibility build our objectives and experiments on top of the objective-centric 
+For easier readability and reproducibility, we build our objectives and experiments within the objective-centric 
 [Adaptor](https://github.com/gaussalgo/adaptor) library, integrated on top of HuggingFace Transformers.
 
 While this fork of Adaptor is required to run the reproduction scripts, the resulting models can be used in standalone
-as any other HuggingFace model -- see [the example](https://github.com/gaussalgo/adaptor#adapted-machine-translation).
+as any other HuggingFace model.
 
 1. **Objectives**: We implement our main and ablation objectives in [new_objectives folder](adaptor/new_objectives).
 Importantly, each objective instance implements its `_compute_loss()` method returning a scalar with grad_fn used to update
-the model.
+the model. You can find the implementation of our two main proposed objectives here: [TokenAlign](adaptor/new_objectives/token_bertscr_objective.py#L16), [SeqAlign](adaptor/new_objectives/seq_bertscr_objectives.py#L371).
 2. **Experiments**: The running scripts of all our experiments can be found in [experiments](experiments) folder. 
 See its respective readme for more information.
 
@@ -41,4 +41,3 @@ a single NVidia Tesla T4, 16 GB of graphic memory, 20 GB of RAM and a single cor
 ```
 
 **Need further help?** File an issue in the project repository and we will take a look! 
-
